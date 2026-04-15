@@ -10,17 +10,17 @@ description: "다양한 문서를 RAG용 마크다운으로 변환. /rag [파일
 
 ## 스크립트 위치
 
-- `~/.claude/skills/rag\scripts\pdf_to_md.py` — PDF → MD
-- `~/.claude/skills/rag\scripts\doc_to_md.py` — HWP/HWPX/DOCX → MD
-- `~/.claude/skills/rag\scripts\markitdown_to_md.py` — 추가 포맷 → MD (MarkItDown 기반)
-- `~/.claude/skills/rag\scripts\fill_image_desc_claude.py` — Claude CLI 이미지 설명
+- `C:\Users\hccga\.claude\skills\rag\scripts\pdf_to_md.py` — PDF → MD
+- `C:\Users\hccga\.claude\skills\rag\scripts\doc_to_md.py` — HWP/HWPX/DOCX → MD
+- `C:\Users\hccga\.claude\skills\rag\scripts\markitdown_to_md.py` — 추가 포맷 → MD (MarkItDown 기반)
+- `C:\Users\hccga\.claude\skills\rag\scripts\fill_image_desc_claude.py` — Claude CLI 이미지 설명
 
 ## 지원 포맷 및 스크립트 매핑
 
 | 확장자 | 스크립트 | 비고 |
 |--------|----------|------|
 | `.pdf` | `pdf_to_md.py` | 이미지 추출, 섹션 분할 지원 |
-| `.hwp` | `doc_to_md.py` | Windows + 한컴 오피스 COM(`HWPFrame.HwpObject`)으로 .hwpx 임시 변환 후 처리 |
+| `.hwp` | `doc_to_md.py` | 1차: Windows + 한컴 오피스 COM → .hwpx 임시 변환 (표·이미지 보존). 2차(폴백): pyhwp(순수 파이썬) → 텍스트 직접 추출 (한컴 無). 실패 시 자동 폴백 |
 | `.hwpx` | `doc_to_md.py` | LibreOffice 경유 |
 | `.docx` | `doc_to_md.py` | python-docx 직접 처리 |
 | `.pptx` | `markitdown_to_md.py` | 슬라이드별 텍스트+이미지 참조 |
@@ -41,7 +41,8 @@ description: "다양한 문서를 RAG용 마크다운으로 변환. /rag [파일
 - `python-docx` — DOCX 처리
 - `Pillow` — 이미지 처리
 - `LibreOffice` — HWPX → DOCX 변환
-- `pywin32` + 한컴 오피스 — HWP → HWPX 변환 (Windows 전용)
+- `pywin32` + 한컴 오피스 — HWP → HWPX 변환 (Windows 전용, 1차 경로)
+- `pyhwp` — HWP → 텍스트 폴백 (한컴·LibreOffice 없이 동작). `pip install pyhwp`. 강제: `RAG_DOC_BACKEND=pyhwp`
 - Claude CLI (`claude -p`) — 이미지 설명 (Max 구독 포함, 추가 비용 없음)
 
 ### 추가 (MarkItDown + Whisper)
@@ -98,7 +99,7 @@ description: "다양한 문서를 RAG용 마크다운으로 변환. /rag [파일
 ### PDF 파일
 
 ```bash
-python "~/.claude/skills/rag\scripts\pdf_to_md.py" "<pdf_path>" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\pdf_to_md.py" "<pdf_path>" \
   -o "<output_dir>" \
   --min-img-size 200 \
   --min-img-area 0
@@ -106,7 +107,7 @@ python "~/.claude/skills/rag\scripts\pdf_to_md.py" "<pdf_path>" \
 
 분할이 있는 경우:
 ```bash
-python "~/.claude/skills/rag\scripts\pdf_to_md.py" "<pdf_path>" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\pdf_to_md.py" "<pdf_path>" \
   -o "<output_dir>" \
   -s "<split_config.json>" \
   --min-img-size 200
@@ -115,7 +116,7 @@ python "~/.claude/skills/rag\scripts\pdf_to_md.py" "<pdf_path>" \
 ### HWP / HWPX / DOCX 파일
 
 ```bash
-python "~/.claude/skills/rag\scripts\doc_to_md.py" "<file_path>" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\doc_to_md.py" "<file_path>" \
   -o "<output_dir>"
 ```
 
@@ -124,13 +125,13 @@ python "~/.claude/skills/rag\scripts\doc_to_md.py" "<file_path>" \
 ### 추가 포맷 (PPTX, XLSX, CSV, HTML, JSON, XML, 오디오, EPUB, ZIP, YouTube)
 
 ```bash
-python "~/.claude/skills/rag\scripts\markitdown_to_md.py" "<file_or_url>" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\markitdown_to_md.py" "<file_or_url>" \
   -o "<output_dir>"
 ```
 
 여러 파일/URL을 한 번에:
 ```bash
-python "~/.claude/skills/rag\scripts\markitdown_to_md.py" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\markitdown_to_md.py" \
   "file1.pptx" "file2.xlsx" "https://youtu.be/xxxx" \
   -o "<output_dir>"
 ```
@@ -146,7 +147,7 @@ python "~/.claude/skills/rag\scripts\markitdown_to_md.py" \
 Claude CLI(`claude -p`)로 이미지 설명을 생성한다. Max 구독에 포함되어 추가 비용 없음.
 
 ```bash
-python "~/.claude/skills/rag\scripts\fill_image_desc_claude.py" "<md_dir>" \
+python "C:\Users\hccga\.claude\skills\rag\scripts\fill_image_desc_claude.py" "<md_dir>" \
   -c "<맥락 설명>" \
   -w 10 \
   --model sonnet \

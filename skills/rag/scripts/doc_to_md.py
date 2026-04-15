@@ -96,7 +96,48 @@ def hancom_save_as(src_path: Path, target_path: Path, fmt: str) -> Path:
 
 
 def hwp_to_md(file_path: Path, out_dir: Path):
-    """HWP → MD: 한컴 COM으로 .hwpx 임시 변환 후 순수 파이썬 hwpx 파서로 처리."""
+    """HWP → MD: 두 경로 중 하나로 변환한다.
+
+    1차(기본): 한컴 COM으로 .hwpx 임시 변환 → 순수 파이썬 hwpx 파서
+      - Windows + 한컴 오피스 설치 필요
+      - 표, 이미지, 서식 보존이 가장 좋음
+
+    2차(폴백): pyhwp(순수 파이썬)로 직접 텍스트 추출
+      - 어느 OS에서도 동작 (한컴·LibreOffice 무관)
+      - 표는 `<표>` 플레이스홀더로 남고, 이미지·서식은 손실됨
+      - 설치: pip install pyhwp
+
+    강제 override: 환경변수 RAG_DOC_BACKEND=pyhwp 또는 =hancom
+    """
+    backend = os.environ.get("RAG_DOC_BACKEND", "").strip().lower()
+
+    # 강제 pyhwp 선택
+    if backend == "pyhwp":
+        return _hwp_to_md_via_pyhwp(file_path, out_dir)
+
+    # 강제 한컴 선택 또는 기본(한컴 우선)
+    if backend in ("hancom", ""):
+        try:
+            return _hwp_to_md_via_hancom(file_path, out_dir)
+        except Exception as exc:
+            if backend == "hancom":
+                raise
+            # 기본 경로: 한컴 실패 시 pyhwp 폴백
+            print(
+                f"[hwp_to_md] 한컴 COM 경로 실패({type(exc).__name__}), "
+                f"pyhwp 폴백으로 전환",
+                file=sys.stderr,
+            )
+            return _hwp_to_md_via_pyhwp(file_path, out_dir)
+
+    raise RuntimeError(
+        f"알 수 없는 RAG_DOC_BACKEND='{backend}'. "
+        "'hancom' 또는 'pyhwp' 중 하나를 쓰거나 비워 두어라."
+    )
+
+
+def _hwp_to_md_via_hancom(file_path: Path, out_dir: Path):
+    """한컴 COM 경로: .hwp → .hwpx → hwpx_pure_to_md."""
     temp_dir = out_dir / "_temp"
     os.makedirs(temp_dir, exist_ok=True)
     try:
@@ -105,6 +146,55 @@ def hwp_to_md(file_path: Path, out_dir: Path):
         return hwpx_pure_to_md(hwpx_path, out_dir, original_stem=file_path.stem)
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _hwp_to_md_via_pyhwp(file_path: Path, out_dir: Path):
+    """pyhwp 경로: 순수 파이썬으로 .hwp → 텍스트 → 마크다운.
+
+    한컴·LibreOffice가 없어도 동작. 다만 다음 한계가 있다.
+    - 표는 ``<표>`` 플레이스홀더로 표시됨 (본문 구조는 유지)
+    - 임베디드 이미지는 추출되지 않음
+    - 굵게·기울임 등 서식은 손실됨
+
+    pyhwp 설치 필요: pip install pyhwp
+    """
+    try:
+        from contextlib import closing
+        import io
+        from hwp5.hwp5txt import TextTransform
+        from hwp5.xmlmodel import Hwp5File
+    except ImportError as exc:
+        raise RuntimeError(
+            ".hwp 변환에 pyhwp가 필요한데 설치되어 있지 않다. "
+            "다음을 실행: pip install pyhwp"
+        ) from exc
+
+    stem = file_path.stem
+    md_path = out_dir / f"{stem}.md"
+    os.makedirs(out_dir, exist_ok=True)
+
+    with closing(Hwp5File(str(file_path))) as hwp5:
+        buf = io.BytesIO()
+        TextTransform().transform_hwp5_to_text(hwp5, buf)
+        text = buf.getvalue().decode("utf-8", errors="replace")
+
+    # 텍스트 → 마크다운: 간단한 정리
+    lines = [line.rstrip() for line in text.splitlines()]
+    # 연속 공백 줄 정리 (3줄 이상 → 2줄)
+    cleaned = []
+    blank_run = 0
+    for line in lines:
+        if not line.strip():
+            blank_run += 1
+            if blank_run <= 2:
+                cleaned.append("")
+        else:
+            blank_run = 0
+            cleaned.append(line)
+
+    md_lines = [f"# {stem}", "", *cleaned, "", "---", "", "> pyhwp 폴백으로 변환됨 (한컴 미사용). 표·이미지·서식 일부가 누락될 수 있음."]
+    md_path.write_text("\n".join(md_lines), encoding="utf-8")
+    return md_path
 
 
 def hwpx_pure_to_md(hwpx_path: Path, out_dir: Path, original_stem: str | None = None):
