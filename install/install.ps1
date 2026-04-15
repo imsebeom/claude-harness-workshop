@@ -10,7 +10,7 @@ Write-Host "==== Claude Harness Workshop 설치 ====" -ForegroundColor Cyan
 
 $ClaudeDir = Join-Path $env:USERPROFILE ".claude"
 $Stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$RepoUrl = "https://github.com/CHANGEME/claude-harness-workshop.git"
+$RepoUrl = "https://github.com/imsebeom/claude-harness-workshop.git"
 $TempDir = Join-Path $env:TEMP "claude-harness-workshop-$Stamp"
 
 # 1. 기존 ~/.claude 백업

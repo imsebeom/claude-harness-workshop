@@ -11,7 +11,7 @@ echo "==== Claude Harness Workshop 설치 ===="
 
 CLAUDE_DIR="$HOME/.claude"
 STAMP=$(date +%Y%m%d-%H%M%S)
-REPO_URL="https://github.com/CHANGEME/claude-harness-workshop.git"
+REPO_URL="https://github.com/imsebeom/claude-harness-workshop.git"
 TMP_DIR="/tmp/claude-harness-workshop-$STAMP"
 
 # 1. 기존 ~/.claude 백업

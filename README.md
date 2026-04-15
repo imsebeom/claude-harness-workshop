@@ -39,7 +39,7 @@
 
 ```powershell
 # 1. 저장소 클론
-git clone https://github.com/CHANGEME/claude-harness-workshop.git
+git clone https://github.com/imsebeom/claude-harness-workshop.git
 cd claude-harness-workshop
 
 # 2. 설치 스크립트 실행 (기존 ~/.claude는 자동 백업됩니다)
@@ -49,7 +49,7 @@ cd claude-harness-workshop
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/CHANGEME/claude-harness-workshop.git
+git clone https://github.com/imsebeom/claude-harness-workshop.git
 cd claude-harness-workshop
 bash install/install.sh
 ```
