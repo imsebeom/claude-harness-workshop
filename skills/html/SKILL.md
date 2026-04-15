@@ -84,7 +84,7 @@ PYTHONIOENCODING=utf-8 python "~/.claude/skills/html/scripts/extract_figures.py"
 - 브라우저(Chrome MCP)로 열어 모바일 뷰(360px) 스크롤·TOC·글자 크기·피겨 확인
 
 ### 6. 배포 (선택)
-사용자가 요청하면 `/egpt <폴더명>` 스킬로 Firebase Hosting 하위 경로 배포.
+사용자가 요청하면 `/deploy` 커맨드로 Firebase Hosting에 배포.
 
 ## 의존성
 - `fitz` (PyMuPDF) — 텍스트·드로잉 추출, 피겨 렌더링

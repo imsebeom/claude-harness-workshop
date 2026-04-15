@@ -20,7 +20,7 @@
 | `skills/pptx` | 슬라이드 자동 작성·편집 |
 | `skills/docx` | 워드 문서 자동 작성·편집 |
 | `skills/video-transcript` | 영상·YouTube → 자막 마크다운 |
-| `commands/배포.md` | Firebase Hosting 한 줄 배포 |
+| `commands/deploy.md` | Firebase Hosting 한 줄 배포 (`/deploy`) |
 | `commands/verify.md` | 결과물 경량 검증 |
 | `commands/wrap.md` | 세션 마무리 (학습점·다음 할 일 정리) |
 | `commands/project-init.md` | 새 프로젝트 표준 구조 초기화 |
