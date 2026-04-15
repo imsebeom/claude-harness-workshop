@@ -25,8 +25,9 @@
 | `commands/wrap.md` | 세션 마무리 (학습점·다음 할 일 정리) |
 | `commands/project-init.md` | 새 프로젝트 표준 구조 초기화 |
 | `commands/rag.md` | `/rag <파일>` 단축 명령 |
-| `install/install.ps1` | Windows 설치 스크립트 |
-| `install/install.sh` | macOS/Linux 설치 스크립트 |
+| `install/install.ps1` | 워크숍 하네스 적용 스크립트 (Windows) |
+| `install/install.sh` | 워크숍 하네스 적용 스크립트 (macOS/Linux) |
+| `install/setup-windows.ps1` | Windows 편의 셋팅 (PATH + 우클릭 메뉴) |
 
 ## 사전 준비물
 
@@ -70,6 +71,26 @@ claude
 ```
 
 `claude-sonnet` 계열로 답변하면 정상 동작입니다.
+
+## Windows 편의 셋팅 (PATH + 우클릭 메뉴)
+
+공식 Windows 인스톨러(`claude.ai/install.cmd`)는 `claude.exe`를 `%USERPROFILE%\.local\bin\`에 설치하지만 **PATH 등록은 하지 않습니다**. 그래서 첫 실행은 파일 탐색기에서 직접 `claude.exe`를 더블클릭해야 합니다:
+
+```
+%USERPROFILE%\.local\bin\claude.exe
+```
+
+매번 이렇게 여는 건 번거롭기 때문에 한 번만 다음 스크립트를 실행하면 (a) 새 CMD 창에서 `claude` 한 단어로 뜨고, (b) 탐색기 아무 폴더에서 우클릭 → "Open Claude Code here" 항목이 생깁니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install\setup-windows.ps1
+```
+
+이미 클로드 코드가 떠 있다면 대화창에 다음 한 줄로 부탁해도 됩니다:
+
+```
+PATH에 ~/.local/bin을 추가하고 우클릭 메뉴에 'Open Claude Code here'를 등록해 줘.
+```
 
 ## 권장 추가 셋팅 — Remote Control 켜기
 
