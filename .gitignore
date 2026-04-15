@@ -1,0 +1,51 @@
+# 민감정보 차단 (절대 커밋 금지)
+apikeys/
+**/apikeys
+**/*.key
+**/*.pem
+**/.env
+**/.env.*
+**/secrets.*
+
+# Claude Code 작업 산출물
+memory/
+projects/
+sessions/
+tasks/
+todos/
+backups/
+debug/
+cache/
+file-history/
+shell-snapshots/
+plans/
+telemetry/
+statsig/
+paste-cache/
+stats-cache.json
+history.jsonl
+
+# 백업 파일
+*.bak
+*.bak.*
+~/.claude.bak.*
+
+# 학생 실습 결과물
+workshop-output/
+*.firebase/
+.firebaserc
+firebase-debug.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

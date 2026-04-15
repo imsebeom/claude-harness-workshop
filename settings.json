@@ -1,0 +1,33 @@
+{
+  "model": "claude-sonnet-4-6",
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(pip:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(tree:*)",
+      "Bash(cd:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(git:*)",
+      "Bash(firebase:*)",
+      "Bash(pandoc:*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"[console]::beep(800,200); [console]::beep(1000,300)\""
+          }
+        ]
+      }
+    ]
+  }
+}
