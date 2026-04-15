@@ -390,10 +390,10 @@ def zip_replace(src, dst, replacements):
 # ⚠️ 필수: fix_namespaces 후처리
 import subprocess, sys
 subprocess.run([sys.executable,
-    "C:/Users/hccga/.claude/skills/hwpx/scripts/fix_namespaces.py", dst], check=True)
+    "~/.claude/skills/hwpx/scripts/fix_namespaces.py", dst], check=True)
 # 검증
 subprocess.run([sys.executable,
-    "C:/Users/hccga/.claude/skills/hwpx/scripts/validate.py", dst])
+    "~/.claude/skills/hwpx/scripts/validate.py", dst])
 ```
 
 > **⚠️ fix_namespaces.py 누락 = 문서 안 열림!**
@@ -438,7 +438,7 @@ def zip_replace_with_images(src, dst, text_replacements, image_replacements):
     os.replace(tmp, dst)
     # ⚠️ 필수 후처리
     subprocess.run([sys.executable,
-        "C:/Users/hccga/.claude/skills/hwpx/scripts/fix_namespaces.py", dst], check=True)
+        "~/.claude/skills/hwpx/scripts/fix_namespaces.py", dst], check=True)
 ```
 
 ### 양식 선택 정책

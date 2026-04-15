@@ -17,6 +17,9 @@
 | `skills/rag` | PDF/논문/영상 → RAG용 마크다운 변환 |
 | `skills/hwpx` | 한글 문서(.hwpx) 생성·편집 |
 | `skills/paperbanana` | 학술 다이어그램·삽화 자동 생성 |
+| `skills/pptx` | 슬라이드 자동 작성·편집 |
+| `skills/docx` | 워드 문서 자동 작성·편집 |
+| `skills/video-transcript` | 영상·YouTube → 자막 마크다운 |
 | `commands/배포.md` | Firebase Hosting 한 줄 배포 |
 | `commands/verify.md` | 결과물 경량 검증 |
 | `commands/wrap.md` | 세션 마무리 (학습점·다음 할 일 정리) |
@@ -76,6 +79,8 @@ claude
 | 2교시 | 딥리서치 → 파일 생성 | `/html`로 PDF 논문 → 모바일 HTML 변환, PPT 자동 생성 |
 | 3교시 | Firebase 배포 | `firebase deploy`로 2교시 결과물 공개 URL 얻기 |
 | 4교시 | 하네스 안내 + 적용 실습 | 본인 커맨드/스킬/훅 1개씩 만들어 보기 |
+
+상세 커리큘럼: [`CURRICULUM.md`](./CURRICULUM.md)
 
 ## 강의 후 활용
 
