@@ -71,6 +71,18 @@ claude
 
 `claude-sonnet` 계열로 답변하면 정상 동작입니다.
 
+## 권장 추가 셋팅 — Remote Control 켜기
+
+클로드 코드 v2.1.51 이상이라면, 로그인 후 다음 한 줄로 모든 세션을 휴대폰·태블릿·다른 브라우저에서도 제어할 수 있게 만드세요.
+
+```text
+/config
+```
+
+설정 패널이 뜨면 **"Enable Remote Control for all sessions"** 항목을 `true`로 토글하고 ESC로 닫습니다. 이후 [claude.ai/code](https://claude.ai/code) 또는 모바일 Claude 앱에 같은 계정으로 로그인하면 본인 노트북 세션이 자동으로 목록에 잡힙니다.
+
+> 이 설정은 `/config` UI에서만 토글 가능하며 settings.json에 직접 키로 들어가지 않습니다. (그래서 이 저장소의 settings.json에는 들어 있지 않고, 본인이 한 번 켜야 합니다.)
+
 ## 4차시 강의 구성 (요약)
 
 | 차시 | 주제 | 핵심 활동 |
