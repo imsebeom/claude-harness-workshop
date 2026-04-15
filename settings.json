@@ -15,7 +15,7 @@
       "Bash(firebase:*)",
       "Bash(pandoc:*)"
     ],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "Stop": [
