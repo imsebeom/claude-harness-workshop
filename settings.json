@@ -7,27 +7,86 @@
       "Bash(ls:*)",
       "Bash(dir:*)",
       "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(set:*)",
       "Bash(cd:*)",
+      "Bash(findstr:*)",
+      "Bash(where.exe:*)",
+      "Bash(pandoc:*)",
+      "Bash(powershell:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cmd.exe:*)",
       "Bash(npm:*)",
       "Bash(npx:*)",
       "Bash(node:*)",
       "Bash(git:*)",
       "Bash(firebase:*)",
-      "Bash(pandoc:*)"
+      "Bash(winget:*)"
+    ],
+    "deny": [
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(**/apikeys/**)",
+      "Edit(**/apikeys/**)"
     ],
     "defaultMode": "bypassPermissions"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILE=$(echo $TOOL_INPUT | sed -n \"s/.*\\\"file_path\\\":\\\"\\([^\\\"]*\\)\\\".*/\\1/p\"); if [ -n \"$FILE\" ] && [ -f \"$FILE\" ]; then cp \"$FILE\" \"$FILE.bak\"; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'CMD=\"$TOOL_INPUT\"; if echo \"$CMD\" | grep -qE \"rm -rf /|rm -rf ~|rm -rf \\\\.( |$)|chmod -R 777|:\\\\(\\\\)\\\\{|git push --force|git reset --hard|DROP TABLE|FORMAT |> *\\\\.env|>> *\\\\.env\"; then echo \"BLOCKED: 위험 명령 감지\" >&2; exit 2; fi'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILE=$(echo $TOOL_INPUT | sed -n \"s/.*\\\"file_path\\\":\\\"\\([^\\\"]*\\)\\\".*/\\1/p\"); if [[ \"$FILE\" == *.py ]]; then python -m ruff check --fix --quiet \"$FILE\" >/dev/null 2>&1; python -m ruff format --quiet \"$FILE\" >/dev/null 2>&1; if ! OUT=$(python -m ruff check --quiet \"$FILE\" 2>&1); then echo \"ruff: 미해결 린트 에러 ($FILE)\" >&2; echo \"$OUT\" >&2; exit 2; fi; fi'"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"[console]::beep(800,300); [console]::beep(1000,300)\""
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"[console]::beep(800,200); [console]::beep(1000,300)\""
+            "command": "powershell -Command \"[console]::beep(600,200); [console]::beep(800,200); [console]::beep(1000,300)\""
           }
         ]
       }
     ]
-  }
+  },
+  "skipDangerousModePermissionPrompt": true
 }
