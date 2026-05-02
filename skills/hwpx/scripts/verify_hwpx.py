@@ -22,8 +22,42 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import zipfile
+from pathlib import Path
+
+# rhwp (edwardkim/rhwp, src/parser/hwpx/reader.rs:19-26) 기반 zip bomb 상한
+ZIP_MAX_XML_SIZE = 32 * 1024 * 1024       # 32 MB — XML/HPF 엔트리
+ZIP_MAX_BINDATA_SIZE = 64 * 1024 * 1024   # 64 MB — BinData/* 이미지/폰트
+
+# polaris-dvc (PolarisOffice/polaris_dvc) — 외부 바이너리, 선택적 의존성
+_SKILL_BIN = Path(__file__).parent.parent / "bin" / "polaris-dvc.exe"
+
+
+def _find_polaris_dvc():
+    """polaris-dvc 바이너리 위치 탐색. 없으면 None."""
+    if _SKILL_BIN.exists():
+        return str(_SKILL_BIN)
+    return shutil.which("polaris-dvc")
+
+
+def _check_zip_bomb(zf, names):
+    """zip bomb 방어: 엔트리별 해제 크기 상한 검증.
+
+    위반 목록(빈 리스트 = 안전)을 반환한다.
+    """
+    violations = []
+    for name in names:
+        try:
+            info = zf.getinfo(name)
+        except KeyError:
+            continue
+        limit = ZIP_MAX_BINDATA_SIZE if name.startswith("BinData/") else ZIP_MAX_XML_SIZE
+        if info.file_size > limit:
+            violations.append({"entry": name, "size": info.file_size, "limit": limit})
+    return violations
 
 
 def _count_structure(hwpx_path):
@@ -34,6 +68,12 @@ def _count_structure(hwpx_path):
         names = zf.namelist()
         result["zip_entries"] = len(names)
         result["bindata"] = len([n for n in names if n.startswith("BinData/")])
+
+        # zip bomb 상한 체크 (rhwp 기반)
+        zb = _check_zip_bomb(zf, names)
+        result["zip_bomb_safe"] = not zb
+        if zb:
+            result["zip_bomb_violations"] = zb
 
         # mimetype 검사
         result["mimetype_first"] = names[0] == "mimetype" if names else False
@@ -88,6 +128,40 @@ def _count_structure(hwpx_path):
     return result
 
 
+def _run_polaris_dvc(hwpx_path, spec_path=None):
+    """polaris-dvc 실행 → JID 위반 목록 반환.
+
+    바이너리 미설치·실행 실패 시 None.
+    spec_path 미제공 시 규칙 적합성 축은 비활성, 구조/컨테이너 위반만 검출.
+    """
+    binary = _find_polaris_dvc()
+    if not binary:
+        return None
+
+    cmd = [binary]
+    if spec_path:
+        cmd += ["-t", spec_path]
+    cmd.append(str(hwpx_path))
+
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"error": f"polaris-dvc 실행 실패: {e}"}
+
+    # exit code: 0=깨끗, 1=위반 검출, 2=사용법 오류, 3=입력 오류
+    if proc.returncode in (0, 1):
+        try:
+            violations = json.loads(proc.stdout) if proc.stdout.strip() else []
+        except json.JSONDecodeError as e:
+            return {"error": f"polaris-dvc JSON 파싱 실패: {e}"}
+        return {"violations": violations, "binary": binary}
+
+    return {"error": f"polaris-dvc exit {proc.returncode}: {proc.stderr.strip()[:200]}"}
+
+
 def _extract_texts(hwpx_path):
     """텍스트 추출 (간소화 버전)."""
     texts = []
@@ -102,13 +176,16 @@ def _extract_texts(hwpx_path):
     return texts
 
 
-def verify(source_path=None, result_path=None, json_output=None):
+def verify(source_path=None, result_path=None, json_output=None,
+            strict=False, spec_path=None):
     """HWPX 검수를 실행한다.
 
     Args:
         source_path: 원본 .hwpx (비교 검수 시)
         result_path: 결과 .hwpx (필수)
         json_output: JSON 리포트 경로 (선택)
+        strict: True 면 polaris-dvc로 JID 위반까지 검출
+        spec_path: polaris-dvc 규칙 spec JSON (--strict 와 함께 사용, 선택)
 
     Returns:
         dict: 검수 결과
@@ -137,6 +214,37 @@ def verify(source_path=None, result_path=None, json_output=None):
             f"XML 파싱 실패 {result_info['xml_invalid']}개: "
             + "; ".join(result_info.get("xml_errors", []))
         )
+    # zip bomb 상한 위반
+    for v in result_info.get("zip_bomb_violations", []):
+        report["issues"].append(
+            f"엔트리 크기 상한 초과 ({v['entry']}: {v['size']} > {v['limit']}) — zip bomb 가능성"
+        )
+
+    # 1.5. polaris-dvc strict 검증 (선택적)
+    if strict:
+        polaris = _run_polaris_dvc(result_path, spec_path)
+        if polaris is None:
+            report["warnings"].append(
+                "polaris-dvc 미설치 — strict 검증 건너뜀 "
+                f"(설치 위치: {_SKILL_BIN} 또는 PATH)"
+            )
+        elif "error" in polaris:
+            report["warnings"].append(f"polaris-dvc: {polaris['error']}")
+        else:
+            from collections import Counter
+            v = polaris["violations"]
+            jid_counts = Counter(item["ErrorCode"] for item in v)
+            report["polaris"] = {
+                "binary": polaris["binary"],
+                "total_violations": len(v),
+                "by_jid": dict(jid_counts.most_common()),
+                "samples": v[:5],  # 상위 5개 샘플만
+            }
+            if v:
+                top = ", ".join(f"JID {j}({c})" for j, c in jid_counts.most_common(3))
+                report["issues"].append(
+                    f"polaris-dvc 위반 {len(v)}건: {top}"
+                )
 
     # 2. 원본과 비교 (제공된 경우)
     if source_path and os.path.exists(source_path):
@@ -236,6 +344,15 @@ def _print_report(report):
             icon = "✅" if ratio >= 90 else ("⚠️" if ratio >= 50 else "❌")
             print(f"  {icon} section 크기 비율: {ratio}%")
 
+    # polaris-dvc 결과
+    if "polaris" in report:
+        p = report["polaris"]
+        print(f"\n[polaris-dvc strict 검증]")
+        print(f"  총 위반: {p['total_violations']}건")
+        if p["by_jid"]:
+            for jid, count in list(p["by_jid"].items())[:5]:
+                print(f"    JID {jid}: {count}건")
+
     # 이슈
     if report["issues"]:
         print(f"\n[이슈 ({len(report['issues'])}개)]")
@@ -258,9 +375,13 @@ def main():
     parser.add_argument("--source", help="원본 HWPX 파일 (비교 검수)")
     parser.add_argument("--result", required=True, help="검수 대상 HWPX 파일")
     parser.add_argument("--json", help="JSON 리포트 출력 경로")
+    parser.add_argument("--strict", action="store_true",
+                          help="polaris-dvc로 JID 위반 검출 (선택)")
+    parser.add_argument("--spec", help="polaris-dvc 규칙 spec JSON 경로 (선택)")
 
     args = parser.parse_args()
-    report = verify(args.source, args.result, args.json)
+    report = verify(args.source, args.result, args.json,
+                     strict=args.strict, spec_path=args.spec)
 
     sys.exit(0 if report["status"] in ("PASS", "WARN") else 1)
 

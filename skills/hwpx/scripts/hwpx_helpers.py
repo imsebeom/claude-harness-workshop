@@ -20,6 +20,68 @@ MIME_MAP = {
     "png": "image/png", "bmp": "image/bmp", "gif": "image/gif",
 }
 
+# 빈 lineSegArray 가 들어 있는 paragraph 는 polaris-dvc 가 JID 11004 ("paragraph
+# has text but empty lineSegArray") 로 잡는다. HwpOffice 는 알아서 보정해 열지만
+# 후발 검증기·구현체 호환을 위해 기본 더미를 박아 둔다 — 한글이 다음 편집 시
+# 자동으로 재계산하므로 시각적 영향 없음. (참조: PolarisOffice/polaris_dvc v0.1.0)
+LINESEG_DUMMY = (
+    '<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" '
+    'vertsize="900" textheight="900" baseline="765" spacing="360" '
+    'horzpos="0" horzsize="22960" flags="393216"/></hp:linesegarray>'
+)
+
+
+def inject_dummy_linesegs(section_xml: str) -> tuple[str, int]:
+    """linesegarray 가 없는 paragraph 에 더미를 박아 넣는다.
+
+    `</hp:p>` 직전 위치에 단 1회만 삽입하며, 이미 linesegarray 가 존재하는
+    paragraph 는 건드리지 않는다.
+
+    Returns:
+        (변환된 XML, 삽입된 paragraph 수)
+    """
+    pattern = re.compile(r"(<hp:p [^>]*>)(.*?)(</hp:p>)", re.DOTALL)
+    count = 0
+
+    def repl(m: "re.Match[str]") -> str:
+        nonlocal count
+        body = m.group(2)
+        if "<hp:linesegarray" in body:
+            return m.group(0)
+        count += 1
+        return m.group(1) + body + LINESEG_DUMMY + m.group(3)
+
+    new_xml = pattern.sub(repl, section_xml)
+    return new_xml, count
+
+
+def ensure_dummy_linesegs_etree(section_tree) -> int:
+    """lxml etree 기반: 모든 `<hp:p>` 에 linesegarray 가 없으면 더미를 박는다.
+
+    `hwpx_modifier`/`hwpx_form_filler` 처럼 etree 로 작업하는 파이프라인용.
+    string-기반의 :func:`inject_dummy_linesegs` 와 효과 동일.
+
+    Returns:
+        삽입된 paragraph 수
+    """
+    from lxml import etree
+
+    ns = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    count = 0
+    for p in section_tree.iter(f"{ns}p"):
+        if p.find(f"{ns}linesegarray") is not None:
+            continue
+        seg_arr = etree.SubElement(p, f"{ns}linesegarray")
+        etree.SubElement(
+            seg_arr,
+            f"{ns}lineseg",
+            textpos="0", vertpos="0", vertsize="900",
+            textheight="900", baseline="765", spacing="360",
+            horzpos="0", horzsize="22960", flags="393216",
+        )
+        count += 1
+    return count
+
 # --- 네임스페이스 선언 (section0.xml 루트에 사용) ---
 NS_DECL = (
     'xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" '
@@ -473,3 +535,275 @@ def insert_image_at(hwpx_path, img_path, anchor_text, width_mm=120,
             zout.write(img_path, f"BinData/{fname}")
 
     os.replace(tmp, out)
+
+
+# =============================================================================
+# rhwp 기반 헬퍼 (edwardkim/rhwp, MIT License 참조)
+# =============================================================================
+
+def local_name(tag):
+    """lxml 태그에서 네임스페이스 접두사를 제거한 로컬 이름을 반환한다.
+
+    rhwp `src/parser/hwpx/utils.rs:10-18` 패턴 차용.
+    HWPX XML은 ``hp:``, ``hc:``, ``hs:`` 등 다양한 prefix가 혼재하므로
+    ``elem.tag == "{uri}p"`` 비교 대신 ``local_name(elem.tag) == "p"`` 를 쓰면 견고하다.
+
+    Args:
+        tag: lxml `_Element.tag` 문자열. ``"{http://...}p"`` 또는 ``"hp:p"`` 또는 ``"p"``.
+
+    Returns:
+        로컬 이름 (예: ``"p"``).
+    """
+    if not isinstance(tag, str):
+        return ""
+    if tag.startswith("{"):
+        # Clark notation: {uri}localname
+        end = tag.find("}")
+        return tag[end + 1:] if end >= 0 else tag
+    if ":" in tag:
+        return tag.split(":", 1)[1]
+    return tag
+
+
+def xpath_local(root, local_name_pattern):
+    """로컬 이름 기반 XPath 검색. 네임스페이스 접두사 무관.
+
+    Args:
+        root: lxml `_Element` 루트.
+        local_name_pattern: 로컬 이름 (예: ``"p"``) 또는 계층(예: ``"tbl/tr/tc"``).
+
+    Returns:
+        매칭된 `_Element` 리스트.
+
+    예시::
+
+        for p in xpath_local(root, "p"):          # 모든 <hp:p>
+            ...
+        for t in xpath_local(root, "tbl//t"):     # <hp:tbl> 하위의 모든 <hp:t>
+            ...
+    """
+    parts = [p for p in local_name_pattern.split("/") if p != ""]
+    axis = "descendant::"
+    query_parts = []
+    for part in parts:
+        if part == "":  # "//" (빈 파트) — descendant axis
+            axis = "descendant-or-self::"
+            continue
+        query_parts.append(f"{axis}*[local-name()='{part}']")
+        axis = "descendant-or-self::"
+    return root.xpath("/".join(query_parts))
+
+
+def utf16_len(s):
+    """UTF-16 코드 유닛 길이.
+
+    HWP 바이너리 포맷은 char_offset을 UTF-16 코드 유닛 단위로 계산한다.
+    대부분의 한글·ASCII는 1 코드 유닛이지만, 이모지·일부 한자(surrogate pair)는
+    2 코드 유닛이다. Python `len(s)`는 코드포인트 기준이라 어긋날 수 있다.
+
+    rhwp `src/parser/hwpx/section.rs:299-322` 참조.
+
+    Args:
+        s: 문자열.
+
+    Returns:
+        UTF-16 코드 유닛 수.
+
+    예시::
+
+        utf16_len("가")      # 1  (BMP)
+        utf16_len("a")       # 1
+        utf16_len("\U0001F600")  # 2  (U+1F600, surrogate pair)
+    """
+    return len(s.encode("utf-16-le")) // 2
+
+
+def tab_aware_offset(s, tab_width=8):
+    """탭 문자를 N 코드 유닛으로 확장한 UTF-16 오프셋.
+
+    HWP 바이너리에서 탭 컨트롤 문자(0x0009)는 8 UTF-16 코드 유닛으로 계산된다.
+    문자열에 탭이 포함된 문단의 char_shape 경계를 계산할 때 필요하다.
+
+    rhwp `src/parser/hwpx/section.rs:310-322` 참조.
+
+    Args:
+        s: 문자열.
+        tab_width: 탭당 코드 유닛 수 (기본 8).
+
+    Returns:
+        탭 확장 후 UTF-16 오프셋.
+    """
+    if "\t" not in s:
+        return utf16_len(s)
+    total = 0
+    for ch in s:
+        if ch == "\t":
+            total += tab_width
+        elif ord(ch) > 0xFFFF:
+            total += 2  # surrogate pair
+        else:
+            total += 1
+    return total
+
+
+# zip bomb 방어 상한 (rhwp src/parser/hwpx/reader.rs:19-26)
+HWPX_MAX_XML_SIZE = 32 * 1024 * 1024       # 32 MB — content.hpf, section*.xml, header.xml 등
+HWPX_MAX_BINDATA_SIZE = 64 * 1024 * 1024   # 64 MB — BinData/*.png, .jpg 등
+
+
+def read_zip_entry_limited(zf, name, *, limit=None):
+    """zip bomb 방어 상한을 적용한 zip 엔트리 읽기.
+
+    압축 해제된 크기가 ``limit`` 을 초과하면 예외 발생. 기본 상한은 파일 경로에서
+    추론: BinData/* 는 64MB, 나머지는 32MB.
+
+    Args:
+        zf: ``zipfile.ZipFile`` 객체.
+        name: 엔트리 이름.
+        limit: 사용자 지정 상한 (bytes). None이면 자동 결정.
+
+    Raises:
+        ValueError: 상한 초과.
+
+    Returns:
+        bytes.
+    """
+    info = zf.getinfo(name)
+    if limit is None:
+        limit = HWPX_MAX_BINDATA_SIZE if name.startswith("BinData/") else HWPX_MAX_XML_SIZE
+    if info.file_size > limit:
+        raise ValueError(
+            f"zip 엔트리 크기 초과 ({name}: {info.file_size} > {limit}). zip bomb 가능성."
+        )
+    data = zf.read(name)
+    if len(data) > limit:  # ZipInfo.file_size가 거짓일 수 있어 실제 크기로도 검증
+        raise ValueError(f"압축 해제 후 크기 초과 ({name}: {len(data)} > {limit})")
+    return data
+
+
+# =============================================================================
+# HWPX FORMULA 필드 주입 (HwpOffice 실스펙 검증, 2026-04-19)
+# =============================================================================
+#
+# HwpOffice 가 직접 저장하는 FORMULA 필드는 다음 구조다 (한컴 실파일 역공학):
+#
+#   <hp:run charPrIDRef="...">
+#     <hp:ctrl>
+#       <hp:fieldBegin id type="FORMULA" name editable dirty zorder fieldid metaTag>
+#         <hp:parameters cnt="5" name="">
+#           <hp:integerParam name="Prop">8</hp:integerParam>
+#           <hp:stringParam name="Command">수식??포맷;;결과</hp:stringParam>
+#           <hp:stringParam name="Formula">수식</hp:stringParam>
+#           <hp:stringParam name="ResultFormat">%g,</hp:stringParam>
+#           <hp:stringParam name="LastResult">결과</hp:stringParam>
+#         </hp:parameters>
+#       </hp:fieldBegin>
+#     </hp:ctrl>
+#     <hp:t>결과</hp:t>
+#     <hp:ctrl><hp:fieldEnd beginIDRef fieldid/></hp:ctrl>
+#     <hp:t/>
+#   </hp:run>
+#
+# 핵심:
+#   - <hp:ctrl> 래퍼 필수 (run 의 직접 자식이 아님)
+#   - parameters cnt="5", Prop(integer)=8 고정
+#   - Command 문자열은 "<formula>??<format>;;<result>" 레거시 패킹
+#   - fieldEnd 속성은 beginIDRef/fieldid (fieldType 아님)
+#   - 수식은 와일드카드 `?` 사용: =SUM(B?:E?) — ?=현재 행, =SUM(?2:?4) — ?=현재 열
+#   - HwpOffice F9 (필드 업데이트) 로 재계산 가능
+#
+# 검증: HwpOffice에서 SUM/AVERAGE/MAX/MIN 정상 렌더·재계산 확인 (2026-04-18).
+
+
+FORMULA_DEFAULT_FIELDID = 627469685   # 문서 내 FORMULA 필드 그룹 ID (HwpOffice 기본값)
+FORMULA_DEFAULT_FORMAT = "%g,"        # 결과 포맷 (천 단위 콤마)
+
+
+def build_formula_run_inner_xml(field_id, formula, result_str, *,
+                                 fieldid=FORMULA_DEFAULT_FIELDID,
+                                 result_format=FORMULA_DEFAULT_FORMAT):
+    """FORMULA 필드 한 셀에 들어갈 <hp:run> 내부 XML 문자열을 생성한다.
+
+    이 문자열을 기존 run 의 자식으로 이식하면 HwpOffice 호환 FORMULA 필드가 된다.
+
+    Args:
+        field_id: 필드별 유니크 ID (정수). 보통 `2139727780 + 순번` 사용.
+        formula: 수식 문자열 (예: ``"=SUM(B?:E?)"``). 와일드카드 `?` 지원.
+        result_str: 프리컴퓨트된 결과 문자열 (예: ``"5,710"``).
+        fieldid: 문서 내 FORMULA 필드 그룹 ID (모든 필드가 공유).
+        result_format: HwpOffice 결과 포맷 문자열 (기본 ``"%g,"``).
+
+    Returns:
+        run 내부에 넣을 XML 문자열 (ctrl + fieldBegin + t + ctrl + fieldEnd + t).
+    """
+    command = f"{formula}??{result_format};;{result_str}"
+    return (
+        '<hp:ctrl>'
+        f'<hp:fieldBegin id="{field_id}" type="FORMULA" name="" '
+        f'editable="0" dirty="0" zorder="-1" fieldid="{fieldid}" metaTag="">'
+        '<hp:parameters cnt="5" name="">'
+        '<hp:integerParam name="Prop">8</hp:integerParam>'
+        f'<hp:stringParam name="Command">{command}</hp:stringParam>'
+        f'<hp:stringParam name="Formula">{formula}</hp:stringParam>'
+        f'<hp:stringParam name="ResultFormat">{result_format}</hp:stringParam>'
+        f'<hp:stringParam name="LastResult">{result_str}</hp:stringParam>'
+        '</hp:parameters>'
+        '</hp:fieldBegin>'
+        '</hp:ctrl>'
+        f'<hp:t>{result_str}</hp:t>'
+        '<hp:ctrl>'
+        f'<hp:fieldEnd beginIDRef="{field_id}" fieldid="{fieldid}"/>'
+        '</hp:ctrl>'
+        '<hp:t/>'
+    )
+
+
+def apply_formula_to_cell(tc, field_id, formula, result_str, *,
+                           fieldid=FORMULA_DEFAULT_FIELDID,
+                           result_format=FORMULA_DEFAULT_FORMAT):
+    """lxml ``<hp:tc>`` 셀에 FORMULA 필드를 주입한다.
+
+    셀의 첫 run 자식들을 제거하고 새 FORMULA 필드 구조로 교체한다.
+    셀에 ``dirty="1"`` 속성도 설정한다 (HwpOffice가 수식 셀로 인식).
+
+    Args:
+        tc: lxml `<hp:tc>` 엘리먼트 (네임스페이스 무관).
+        field_id: 유니크 필드 ID.
+        formula: 수식 문자열 (와일드카드 ``?`` 지원).
+        result_str: 프리컴퓨트된 결과 문자열.
+        fieldid: 필드 그룹 ID (문서 공통).
+        result_format: 결과 포맷.
+
+    Returns:
+        bool — 성공하면 True. 셀에 <hp:run> 이 없으면 False.
+
+    Example::
+
+        from lxml import etree
+        from hwpx_helpers import apply_formula_to_cell
+        # tc = 어떤 <hp:tc> 엘리먼트
+        apply_formula_to_cell(tc, 2139727780, "=SUM(B?:E?)", "5,710")
+    """
+    from lxml import etree as _et  # 지연 임포트 (lxml 미설치 환경 고려)
+
+    HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+    HP_RUN = f"{{{HP_NS}}}run"
+
+    tc.set("dirty", "1")
+    run = next(iter(tc.iter(HP_RUN)), None)
+    if run is None:
+        return False
+    charPr = run.get("charPrIDRef", "0")
+    for child in list(run):
+        run.remove(child)
+
+    inner = build_formula_run_inner_xml(
+        field_id, formula, result_str,
+        fieldid=fieldid, result_format=result_format,
+    )
+    new_run = _et.fromstring(
+        f'<hp:run xmlns:hp="{HP_NS}" charPrIDRef="{charPr}">{inner}</hp:run>'
+    )
+    for child in new_run:
+        run.append(child)
+    return True

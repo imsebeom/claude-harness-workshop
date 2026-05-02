@@ -1,3 +1,8 @@
+---
+name: pdf
+description: "PDF 변환 스킬. HWP/HWPX → PDF 변환, PDF → 이미지(PNG) 변환, 문서 시각 비교·확인 등 '한글을 PDF로', 'HWPX → PDF', 'PDF를 이미지로', 'pdftoppm', '문서 비교' 같은 요청 시 사용. 한글 COM 자동화 + Poppler pdftoppm 기반."
+---
+
 # PDF 변환 스킬
 
 HWP/HWPX 파일을 PDF로 변환하고, PDF를 이미지(PNG)로 변환하는 스킬.

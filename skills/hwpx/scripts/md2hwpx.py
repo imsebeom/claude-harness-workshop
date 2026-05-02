@@ -154,6 +154,8 @@ class SectionBuilder:
         self.paragraphs: list[str] = []
         self._next_id = 1000000001
         self._first_para = True
+        # 동일 헤더 구조를 가진 표들의 열 너비 재사용 캐시
+        self._table_widths_cache: dict[tuple, list[int]] = {}
 
     def _get_id(self) -> str:
         pid = str(self._next_id)
@@ -268,23 +270,75 @@ class SectionBuilder:
                     w += 1
             return max(w, 1)
 
+        def split_cell_lines(text: str) -> list:
+            """셀 텍스트를 여러 줄로 분할 (표 셀 내 개조식 렌더링).
+            1) <br>/<br/>/<br /> 명시적 줄바꿈 지원
+            2) 중간 위치의 bullet 기호(◦ ○ ● • ▪ ∘) 앞에서 자동 줄바꿈
+            3) 하위 항목 " - " 앞에서 자동 줄바꿈(들여쓰기 2칸 유지)
+            """
+            import re
+            t = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+            t = re.sub(r'(?<!^)(?<!\n)\s+(?=[◦○●•▪∘])', '\n', t)
+            t = re.sub(r'(?<!^)(?<!\n) - (?=\S)', '\n  - ', t)
+            lines = [ln.rstrip() for ln in t.split('\n') if ln.strip()]
+            return lines if lines else [text]
+
+        # 한글 10pt 가중치당 520 HWPUNIT + 셀 마진 좌우 566 + 줄끝 여유 280
+        NO_WRAP_THRESHOLD = 14  # 한글 7자 — 데이터 셀 줄바꿈 없음 보장 임계
+        CELL_PAD = 566 + 280
+        CHAR_UNIT = 520
+        def required_width(line_weight):
+            return line_weight * CHAR_UNIT + CELL_PAD
+
         col_weights = []
+        col_min_widths = []
         for ci in range(num_cols):
             max_w = text_weight(headers[ci])
+            header_w = text_weight(headers[ci])
+            # 헤더는 길이에 관계없이 반드시 한 줄 보장
+            short_candidates = [MIN_COL_WIDTH, required_width(header_w)]
+            # 데이터 셀 내 임계 이하인 줄도 한 줄 보장
             for row in rows:
                 if ci < len(row):
-                    max_w = max(max_w, text_weight(row[ci]))
+                    cell = row[ci]
+                    max_w = max(max_w, text_weight(cell))
+                    for line in split_cell_lines(cell):
+                        lw = text_weight(line)
+                        if lw <= NO_WRAP_THRESHOLD:
+                            short_candidates.append(required_width(lw))
             col_weights.append(max_w)
+            col_min_widths.append(max(short_candidates))
 
         total_weight = sum(col_weights)
-        col_widths = [max(MIN_COL_WIDTH, int(body_width * w / total_weight)) for w in col_weights]
+        col_widths = [max(col_min_widths[ci], int(body_width * col_weights[ci] / total_weight)) for ci in range(num_cols)]
 
         # 총합을 body_width에 맞춤
-        diff = body_width - sum(col_widths)
-        if diff != 0:
-            # 가장 넓은 열에서 보정
+        total = sum(col_widths)
+        if total > body_width:
+            # 초과 시 비례 축소 (각 열 MIN_COL_WIDTH 보장)
+            ratio = body_width / total
+            col_widths = [max(MIN_COL_WIDTH, int(w * ratio)) for w in col_widths]
+            diff = body_width - sum(col_widths)
+            if diff != 0:
+                idx = col_widths.index(max(col_widths))
+                col_widths[idx] += diff
+        elif total < body_width:
+            # 부족 시 가장 넓은 열에 추가
             widest = col_widths.index(max(col_widths))
-            col_widths[widest] += diff
+            col_widths[widest] += (body_width - total)
+
+        # 동일 헤더 구조 + 유사한 데이터 크기 분포 표가 반복되면 열 너비를 통일
+        # col_weights를 구간화(S/M/L/XL)해서 키의 일부로 사용 → 성격이 다른 표는 별개
+        def _bucket(w):
+            if w <= 10: return 'S'
+            if w <= 30: return 'M'
+            if w <= 100: return 'L'
+            return 'XL'
+        cache_key = (tuple(headers), tuple(_bucket(w) for w in col_weights))
+        if cache_key in self._table_widths_cache:
+            col_widths = list(self._table_widths_cache[cache_key])
+        else:
+            self._table_widths_cache[cache_key] = list(col_widths)
 
         row_height = 2400
 
@@ -294,21 +348,38 @@ class SectionBuilder:
 
         total_height = row_height * num_rows
 
-        def make_cell(text: str, is_header: bool, col_idx: int, row_idx: int) -> str:
+        BULLET_CHARS = ('◦', '○', '●', '•', '▪', '∘', '-')
+        header_profile = self.profile.get("table_header", self.profile["body"])
+        center_para_pr = header_profile.get("paraPr", "0")
+
+        def make_cell(text: str, is_header: bool, col_idx: int, row_idx: int,
+                      row_span: int = 1) -> str:
             bf = "4" if is_header else "3"
             cp = self.profile.get("table_header" if is_header else "table_cell", self.profile["body"])
             char_pr = cp["charPr"]
-            para_pr = cp.get("paraPr", "0")
-            cell_pid = self._get_id()
+            default_para_pr = cp.get("paraPr", "0")
+            lines = split_cell_lines(text)
+            # 가운데 정렬 조건: 줄바꿈 없음(한 줄) + 글머리 기호 시작 아님
+            has_bullet = any(ln.lstrip().startswith(BULLET_CHARS) for ln in lines)
+            use_center = is_header or (len(lines) == 1 and not has_bullet)
+            para_pr = center_para_pr if use_center else default_para_pr
+            paras = []
+            for line in lines:
+                cell_pid = self._get_id()
+                paras.append(
+                    f'            <hp:p paraPrIDRef="{para_pr}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{cell_pid}">\n'
+                    f'              <hp:run charPrIDRef="{char_pr}"><hp:t>{xml_escape(line)}</hp:t></hp:run>\n'
+                    f'            </hp:p>'
+                )
+            paras_xml = "\n".join(paras)
+            cell_height = row_height * row_span
             return f'''        <hp:tc name="" header="{1 if is_header else 0}" hasMargin="1" protect="0" editable="0" dirty="1" borderFillIDRef="{bf}">
           <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
-            <hp:p paraPrIDRef="{para_pr}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{cell_pid}">
-              <hp:run charPrIDRef="{char_pr}"><hp:t>{xml_escape(text)}</hp:t></hp:run>
-            </hp:p>
+{paras_xml}
           </hp:subList>
           <hp:cellAddr colAddr="{col_idx}" rowAddr="{row_idx}"/>
-          <hp:cellSpan colSpan="1" rowSpan="1"/>
-          <hp:cellSz width="{col_widths[col_idx]}" height="{row_height}"/>
+          <hp:cellSpan colSpan="1" rowSpan="{row_span}"/>
+          <hp:cellSz width="{col_widths[col_idx]}" height="{cell_height}"/>
           <hp:cellMargin left="283" right="283" top="142" bottom="142"/>
         </hp:tc>'''
 
@@ -316,13 +387,32 @@ class SectionBuilder:
         header_cells = "\n".join(make_cell(h, True, i, 0) for i, h in enumerate(headers))
         header_row = f"      <hp:tr>\n{header_cells}\n      </hp:tr>"
 
-        # 데이터 행
+        # 데이터 행 — 셀 값이 '^' 또는 '^^'이면 위 셀과 rowSpan 병합
+        # (빈 셀은 그냥 빈 셀. 병합은 명시적 토큰으로만.)
+        MERGE_UP_TOKENS = {'^', '^^'}
+        # cell_rowspan[ri][ci] = 해당 셀의 rowSpan, 0이면 병합 흡수되어 XML 생략
+        cell_rowspan = [[1] * num_cols for _ in range(len(rows))]
+        main_row_for_col = [None] * num_cols  # 각 열의 마지막 주 셀 행
+        for ri, row in enumerate(rows):
+            for ci in range(num_cols):
+                val = row[ci] if ci < len(row) else ''
+                if val.strip() in MERGE_UP_TOKENS and main_row_for_col[ci] is not None:
+                    # 병합: 위 주 셀 rowSpan++, 현재 셀 스킵
+                    cell_rowspan[main_row_for_col[ci]][ci] += 1
+                    cell_rowspan[ri][ci] = 0
+                else:
+                    main_row_for_col[ci] = ri
+
         data_rows = []
         for ri, row in enumerate(rows):
-            # 열 수 맞추기
             padded = row + [""] * (num_cols - len(row))
-            cells = "\n".join(make_cell(padded[ci], False, ci, ri + 1) for ci in range(num_cols))
-            data_rows.append(f"      <hp:tr>\n{cells}\n      </hp:tr>")
+            cell_xmls = []
+            for ci in range(num_cols):
+                rs = cell_rowspan[ri][ci]
+                if rs == 0:
+                    continue  # 병합 흡수 셀 XML 생략
+                cell_xmls.append(make_cell(padded[ci], False, ci, ri + 1, rs))
+            data_rows.append(f"      <hp:tr>\n" + "\n".join(cell_xmls) + f"\n      </hp:tr>")
 
         all_rows = header_row + "\n" + "\n".join(data_rows)
 
@@ -338,7 +428,7 @@ class SectionBuilder:
 {secpr_part}
     <hp:run charPrIDRef="0">
       <hp:tbl id="{tbl_id}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="{num_rows}" colCnt="{num_cols}" cellSpacing="0" borderFillIDRef="3" noAdjust="0">
-        <hp:sz width="{body_width}" widthRelTo="ABSOLUTE" height="{total_height}" heightRelTo="ABSOLUTE" protect="0"/>
+        <hp:sz width="{body_width}" widthRelTo="ABSOLUTE" height="{total_height}" heightRelTo="AT_LEAST" protect="0"/>
         <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
         <hp:outMargin left="0" right="0" top="0" bottom="0"/>
         <hp:inMargin left="0" right="0" top="0" bottom="0"/>
@@ -350,11 +440,92 @@ class SectionBuilder:
 
     def build_xml(self) -> str:
         """완성된 section0.xml 문자열 반환."""
+        from hwpx_helpers import inject_dummy_linesegs
         body = "\n".join(self.paragraphs)
+        body = self._unify_table_widths(body)
+        body, _ = inject_dummy_linesegs(body)
         return f'''<?xml version='1.0' encoding='UTF-8'?>
 <hs:sec {NS_DECL}>
 {body}
 </hs:sec>'''
+
+    @staticmethod
+    def _unify_table_widths(body: str) -> str:
+        """같은 헤더 구조의 표들은 열 너비를 그룹별 최대값으로 통일."""
+        from collections import defaultdict
+        tbl_pat = re.compile(r'<hp:tbl[^>]*>.*?</hp:tbl>', re.DOTALL)
+        tc_pat = re.compile(r'<hp:tc[^>]*>.*?</hp:tc>', re.DOTALL)
+
+        # 그룹: headers tuple -> [(start, end, widths), ...]
+        groups = defaultdict(list)
+        for m in tbl_pat.finditer(body):
+            tbl = m.group()
+            col_m = re.search(r'colCnt="(\d+)"', tbl)
+            if not col_m:
+                continue
+            nc = int(col_m.group(1))
+            tcs = tc_pat.findall(tbl)
+            if len(tcs) < nc:
+                continue
+            headers = []
+            widths = []
+            for tc in tcs[:nc]:
+                ts = re.findall(r'<hp:t>([^<]+)</hp:t>', tc)
+                headers.append(ts[0] if ts else '')
+                w = re.search(r'<hp:cellSz width="(\d+)"', tc)
+                widths.append(int(w.group(1)) if w else 0)
+            groups[tuple(headers)].append((m.start(), m.end(), widths))
+
+        # 그룹별 max 너비 (합이 body_width 초과 시 비례 축소)
+        BODY_WIDTH = 42520
+        MIN_COL = 2800
+        max_widths = {}
+        for key, items in groups.items():
+            if len(items) < 2:
+                continue
+            nc = len(items[0][2])
+            unified = [max(it[2][i] for it in items) for i in range(nc)]
+            total = sum(unified)
+            if total > BODY_WIDTH:
+                # 각 열을 최소 너비 보장하며 비례 축소
+                ratio = BODY_WIDTH / total
+                unified = [max(MIN_COL, int(w * ratio)) for w in unified]
+                # 반올림 오차·MIN 보정으로 생긴 diff를 가장 큰 열에 흡수
+                diff = BODY_WIDTH - sum(unified)
+                if diff != 0:
+                    idx = unified.index(max(unified))
+                    unified[idx] += diff
+            max_widths[key] = unified
+
+        if not max_widths:
+            return body
+
+        # 뒤에서부터 치환 (인덱스 밀림 방지)
+        all_updates = []
+        for key, items in groups.items():
+            if key not in max_widths:
+                continue
+            unified = max_widths[key]
+            for start, end, _ in items:
+                all_updates.append((start, end, unified))
+        all_updates.sort(key=lambda x: -x[0])
+
+        cell_sz_pat = re.compile(r'<hp:cellSz width="\d+"')
+        for start, end, unified in all_updates:
+            tbl_xml = body[start:end]
+            col_m = re.search(r'colCnt="(\d+)"', tbl_xml)
+            if not col_m:
+                continue
+            nc = int(col_m.group(1))
+            idx = [0]
+            def repl(m, nc=nc, unified=unified, idx=idx):
+                w = unified[idx[0] % nc]
+                idx[0] += 1
+                return f'<hp:cellSz width="{w}"'
+            new_tbl = cell_sz_pat.sub(repl, tbl_xml)
+            body = body[:start] + new_tbl + body[end:]
+
+        return body
 
 
 # ─── 마크다운 파서 ───────────────────────────────────────────────

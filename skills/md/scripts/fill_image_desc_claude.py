@@ -71,9 +71,40 @@ def collect_pending(md_dir, progress, min_area):
     return pending
 
 
-async def describe_one(sem, item, context, model, counter, total):
+def ensure_thumb(img_path_str, thumb_size):
+    """원본 이미지의 긴 변을 thumb_size로 리사이즈한 썸네일을 반환.
+    원본이 이미 작으면 원본 경로를 그대로 반환."""
+    if thumb_size <= 0:
+        return img_path_str
+    src = Path(img_path_str)
+    try:
+        with Image.open(src) as im:
+            w, h = im.size
+            long_side = max(w, h)
+            if long_side <= thumb_size:
+                return img_path_str
+            thumb_dir = src.parent / "_thumb"
+            thumb_dir.mkdir(exist_ok=True)
+            dst = thumb_dir / src.name
+            if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
+                return str(dst.resolve())
+            scale = thumb_size / long_side
+            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+            im2 = im.convert("RGB") if im.mode not in ("RGB", "RGBA", "L") else im
+            im2.thumbnail(new_size, Image.LANCZOS)
+            save_kwargs = {}
+            if dst.suffix.lower() in (".jpg", ".jpeg"):
+                save_kwargs["quality"] = 85
+                save_kwargs["optimize"] = True
+            im2.save(dst, **save_kwargs)
+            return str(dst.resolve())
+    except Exception:
+        return img_path_str
+
+
+async def describe_one(sem, item, context, model, counter, total, thumb_size):
     """claude -p로 이미지 하나 설명"""
-    img_path = item["img_path"]
+    img_path = await asyncio.to_thread(ensure_thumb, item["img_path"], thumb_size)
     prompt = (
         f"Read the image file at '{img_path}' using the Read tool. "
         f"This image is from {context}. "
@@ -188,7 +219,7 @@ async def main_async(args):
     for batch_start in range(0, total, batch_size):
         batch = pending[batch_start:batch_start + batch_size]
         tasks = [
-            describe_one(sem, item, args.context, args.model, counter, total)
+            describe_one(sem, item, args.context, args.model, counter, total, args.thumb_size)
             for item in batch
         ]
         results = await asyncio.gather(*tasks)
@@ -217,6 +248,8 @@ def main():
                         help="최소 이미지 면적(px)")
     parser.add_argument("--model", default="sonnet",
                         help="Claude 모델 (기본: sonnet)")
+    parser.add_argument("--thumb-size", type=int, default=1024,
+                        help="썸네일 긴변 픽셀 (기본: 1024, 0이면 리사이즈 안함)")
 
     args = parser.parse_args()
     asyncio.run(main_async(args))

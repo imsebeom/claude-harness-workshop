@@ -10,7 +10,7 @@ import os
 import re
 import tempfile
 from copy import deepcopy
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from lxml import etree
 
 
@@ -76,7 +76,7 @@ class HwpxModifier:
     def get_all_texts(self) -> List[Tuple[int, str]]:
         """
         모든 텍스트 요소를 인덱스와 함께 반환
-        
+
         Returns:
             [(인덱스, 텍스트), ...] 형태의 리스트
         """
@@ -85,6 +85,60 @@ class HwpxModifier:
             if elem.text:
                 texts.append((idx, elem.text))
         return texts
+
+    def collect_all_fields(self) -> List[Dict[str, Any]]:
+        """문서 내 모든 HWPX 필드를 수집한다.
+
+        rhwp `src/document_core/queries/field_query.rs` 의 ``collect_all_fields()``
+        와 동일한 역할. ``<hp:fieldBegin>`` 요소에서 Command·fieldName·value 를
+        추출한다. 양식 치환, 필드 일괄 값 변경(set_field_value_by_name 기반)의 토대.
+
+        Returns:
+            리스트. 각 항목::
+
+                {
+                    "index": 0,              # 문서 내 등장 순서
+                    "fieldName": "학교명",    # <hp:fieldBegin name=...>
+                    "command": "HYPERLINK",   # <stringParam name="Command">
+                    "fieldType": "user",      # <hp:fieldBegin type=...> (없으면 None)
+                    "fieldId": 42,            # id 속성 (없으면 None)
+                    "params": {"Target": "..."},  # 기타 stringParam
+                }
+        """
+        fields: List[Dict[str, Any]] = []
+        HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+
+        for idx, fb in enumerate(self.section_tree.iter(f"{HP}fieldBegin")):
+            name = fb.get("name")
+            ftype = fb.get("type")
+            fid_str = fb.get("id")
+            try:
+                fid = int(fid_str) if fid_str is not None else None
+            except ValueError:
+                fid = None
+
+            command = None
+            params: Dict[str, str] = {}
+
+            # <hp:parameters><hp:stringParam name="...">value</hp:stringParam>
+            for sp in fb.iter(f"{HP}stringParam"):
+                sp_name = sp.get("name")
+                sp_val = (sp.text or "").strip()
+                if sp_name == "Command":
+                    command = sp_val
+                elif sp_name:
+                    params[sp_name] = sp_val
+
+            fields.append({
+                "index": idx,
+                "fieldName": name,
+                "command": command,
+                "fieldType": ftype,
+                "fieldId": fid,
+                "params": params,
+            })
+
+        return fields
     
     def get_text_summary(self, max_items: int = 50) -> str:
         """
@@ -410,8 +464,12 @@ class HwpxModifier:
             저장된 파일 경로
         """
         # linesegarray 제거 (텍스트 수정 후 레이아웃 캐시 무효화 → 한글이 자동 재계산)
+        # 단, 빈 lineSegArray 가 polaris-dvc JID 11004 를 트리거하므로 더미를 다시 박는다
+        # (HwpOffice 는 텍스트 변경 시 어차피 재계산하므로 시각 영향 없음)
         for lsa in list(self.section_tree.iter('{http://www.hancom.co.kr/hwpml/2011/paragraph}linesegarray')):
             lsa.getparent().remove(lsa)
+        from hwpx_helpers import ensure_dummy_linesegs_etree
+        ensure_dummy_linesegs_etree(self.section_tree)
 
         # section0.xml 저장
         section_path = os.path.join(self.temp_dir, 'Contents', 'section0.xml')

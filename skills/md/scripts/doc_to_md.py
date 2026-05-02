@@ -96,44 +96,65 @@ def hancom_save_as(src_path: Path, target_path: Path, fmt: str) -> Path:
 
 
 def hwp_to_md(file_path: Path, out_dir: Path):
-    """HWP → MD: 두 경로 중 하나로 변환한다.
+    """HWP → MD: 폴백 체인으로 변환한다.
 
-    1차(기본): 한컴 COM으로 .hwpx 임시 변환 → 순수 파이썬 hwpx 파서
-      - Windows + 한컴 오피스 설치 필요
-      - 표, 이미지, 서식 보존이 가장 좋음
+    1차(기본): 한컴 COM SaveAs(HWPX) → 순수 파이썬 hwpx 파서
+      - 표·이미지·서식 보존이 가장 좋음
+      - 단, 한컴 2024 일부 빌드(예: v13.0.0.866)는 SaveAs(HWPX) 자동화에
+        회귀 버그가 있어 RPC_E_DISCONNECTED/SERVERFAULT로 실패할 수 있다.
 
-    2차(폴백): pyhwp(순수 파이썬)로 직접 텍스트 추출
+    2차(폴백): 한컴 COM SaveAs(PDF) → pdf_to_md.py 위임
+      - 같은 한컴 빌드에서 PDF SaveAs는 정상 동작하므로 HWPX 회귀 버그 회피
+      - PyMuPDF가 텍스트·표·이미지를 추출. 표는 셀 위치 기반 텍스트로 보존
+      - 일부 표 구조가 평탄화되지만 RAG 검색용 텍스트는 충분히 살아남는다
+
+    3차(폴백): pyhwp(순수 파이썬)로 직접 텍스트 추출
       - 어느 OS에서도 동작 (한컴·LibreOffice 무관)
       - 표는 `<표>` 플레이스홀더로 남고, 이미지·서식은 손실됨
       - 설치: pip install pyhwp
 
-    강제 override: 환경변수 RAG_DOC_BACKEND=pyhwp 또는 =hancom
+    강제 override: 환경변수 RAG_DOC_BACKEND
+      - pyhwp     : 3차만
+      - hancom    : 1차만 (실패 시 RuntimeError)
+      - hancom_pdf: 2차만 (실패 시 RuntimeError)
+      - 비워두면  : 1차 → 2차 → 3차 순으로 자동 폴백
     """
     backend = os.environ.get("RAG_DOC_BACKEND", "").strip().lower()
 
-    # 강제 pyhwp 선택
+    # 강제 단일 백엔드
     if backend == "pyhwp":
         return _hwp_to_md_via_pyhwp(file_path, out_dir)
+    if backend == "hancom_pdf":
+        return _hwp_to_md_via_hancom_pdf(file_path, out_dir)
+    if backend == "hancom":
+        return _hwp_to_md_via_hancom(file_path, out_dir)
 
-    # 강제 한컴 선택 또는 기본(한컴 우선)
-    if backend in ("hancom", ""):
-        try:
-            return _hwp_to_md_via_hancom(file_path, out_dir)
-        except Exception as exc:
-            if backend == "hancom":
-                raise
-            # 기본 경로: 한컴 실패 시 pyhwp 폴백
-            print(
-                f"[hwp_to_md] 한컴 COM 경로 실패({type(exc).__name__}), "
-                f"pyhwp 폴백으로 전환",
-                file=sys.stderr,
-            )
-            return _hwp_to_md_via_pyhwp(file_path, out_dir)
+    if backend != "":
+        raise RuntimeError(
+            f"알 수 없는 RAG_DOC_BACKEND='{backend}'. "
+            "'hancom', 'hancom_pdf', 'pyhwp' 중 하나를 쓰거나 비워 두어라."
+        )
 
-    raise RuntimeError(
-        f"알 수 없는 RAG_DOC_BACKEND='{backend}'. "
-        "'hancom' 또는 'pyhwp' 중 하나를 쓰거나 비워 두어라."
-    )
+    # 자동 폴백 체인: HWPX → PDF → pyhwp
+    try:
+        return _hwp_to_md_via_hancom(file_path, out_dir)
+    except Exception as exc:
+        print(
+            f"[hwp_to_md] 1차(한컴 HWPX) 실패({type(exc).__name__}: {exc}), "
+            f"2차(한컴 PDF 경유)로 전환",
+            file=sys.stderr,
+        )
+
+    try:
+        return _hwp_to_md_via_hancom_pdf(file_path, out_dir)
+    except Exception as exc:
+        print(
+            f"[hwp_to_md] 2차(한컴 PDF) 실패({type(exc).__name__}: {exc}), "
+            f"3차(pyhwp)로 전환",
+            file=sys.stderr,
+        )
+
+    return _hwp_to_md_via_pyhwp(file_path, out_dir)
 
 
 def _hwp_to_md_via_hancom(file_path: Path, out_dir: Path):
@@ -144,6 +165,47 @@ def _hwp_to_md_via_hancom(file_path: Path, out_dir: Path):
         hwpx_path = temp_dir / (file_path.stem + ".hwpx")
         hancom_save_as(file_path, hwpx_path, "HWPX")
         return hwpx_pure_to_md(hwpx_path, out_dir, original_stem=file_path.stem)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _hwp_to_md_via_hancom_pdf(file_path: Path, out_dir: Path):
+    """한컴 COM PDF 경유: .hwp → .pdf → pdf_to_md.py.
+
+    한컴 2024 일부 빌드의 SaveAs(HWPX) 회귀 버그를 회피하기 위한 폴백.
+    같은 빌드에서 SaveAs(PDF)는 정상 동작한다.
+    pdf_to_md.py가 텍스트·이미지를 추출해 out_dir에 stem.md를 만든다.
+    """
+    temp_dir = out_dir / "_temp"
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(temp_dir, exist_ok=True)
+    try:
+        pdf_path = temp_dir / (file_path.stem + ".pdf")
+        hancom_save_as(file_path, pdf_path, "PDF")
+
+        pdf_to_md_script = Path(__file__).parent / "pdf_to_md.py"
+        if not pdf_to_md_script.exists():
+            raise RuntimeError(
+                f"pdf_to_md.py를 찾을 수 없다: {pdf_to_md_script}"
+            )
+
+        env = os.environ.copy()
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        proc = subprocess.run(
+            [sys.executable, str(pdf_to_md_script), str(pdf_path),
+             "-o", str(out_dir), "--min-img-size", "200"],
+            capture_output=True, text=True, encoding="utf-8", env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"pdf_to_md.py 실행 실패: {proc.stderr or proc.stdout}"
+            )
+        md_path = out_dir / f"{file_path.stem}.md"
+        if not md_path.exists():
+            raise RuntimeError(
+                f"PDF→MD 변환 후 출력 MD가 없다: {md_path}\n{proc.stdout}"
+            )
+        return md_path
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 

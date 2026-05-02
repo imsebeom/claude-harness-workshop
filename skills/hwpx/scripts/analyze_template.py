@@ -19,6 +19,9 @@ import zipfile
 import argparse
 from lxml import etree
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from hwpx_helpers import xpath_local  # noqa: E402  (rhwp local_name 패턴)
+
 NS = {
     'hp': 'http://www.hancom.co.kr/hwpml/2011/paragraph',
     'hs': 'http://www.hancom.co.kr/hwpml/2011/section',
@@ -30,8 +33,9 @@ FONT_MAP = {}
 
 
 def get_text(el):
+    # xpath_local: 네임스페이스 prefix(hp:/ns0:/...) 무관하게 <*:t> 텍스트 수집
     texts = []
-    for t in el.findall('.//hp:t', NS):
+    for t in xpath_local(el, 't'):
         if t.text:
             texts.append(t.text)
     return ''.join(texts)

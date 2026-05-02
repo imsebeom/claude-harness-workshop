@@ -230,3 +230,16 @@ pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
 - `npm install -g pptxgenjs` - creating from scratch
 - LibreOffice (`soffice`) - PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
 - Poppler (`pdftoppm`) - PDF to images
+
+---
+
+## Subworkflow: 학술 삽화 포함 PPT 생성 (구 `/create_academic_ppt`)
+
+사용자가 "학술 PPT 만들어", "논문 스타일 PPT", "IEEE 스타일 그림 포함 발표자료", "/create_academic_ppt [주제]" 등을 요청할 때 다음 순서로 처리한다.
+
+1. **주제 파악**: 슬래시 명령 인자 또는 사용자 입력에서 주제를 확보. 주제가 비면 "어떤 주제의 발표 자료를 만들까요?"로 되묻는다.
+2. **콘텐츠 JSON 생성** (`slides.json`) — 5장 슬라이드 기준:
+   - 각 슬라이드는 `title`, `content`(불릿), `image_prompt` 필드를 가진다.
+   - `image_prompt`는 "학술 그림, IEEE/CVPR 논문 스타일, 개략도, 깔끔한 선, 흰색 배경" 스타일을 명시.
+3. **PPT 생성**: `python generate_ppt.py` (또는 pptxgenjs 경로)로 slides.json을 읽어 pptx 빌드. 삽화는 `paperbanana` 스킬 호출로 대체 가능.
+4. **마무리**: 산출물 파일 경로를 사용자에게 보고.

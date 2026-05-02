@@ -14,16 +14,17 @@ HWPX는 한컴오피스 한글의 개방형 문서 포맷이다. **ZIP 패키지
 ${CLAUDE_SKILL_DIR}/
 ├── SKILL.md
 ├── scripts/
-│   ├── hwpx_helpers.py        # ★ 헬퍼 라이브러리 (배너/섹션바/이미지/빌드 함수)
+│   ├── hwpx_helpers.py        # ★ 헬퍼 라이브러리 (+ local_name/utf16/zip 상한)
+│   ├── table_calc.py          # ★ 표 계산식 엔진 (SUM/AVG/IF 등, rhwp 포팅)
 │   ├── build_hwpx.py          # 템플릿+XML → .hwpx 조립
 │   ├── fix_namespaces.py      # ★ 필수: 네임스페이스 후처리
 │   ├── validate.py            # HWPX 구조 검증
-│   ├── analyze_template.py    # HWPX 심층 분석
+│   ├── analyze_template.py    # HWPX 심층 분석 (xpath_local 사용)
 │   ├── clone_form.py           # ★ 양식 복제 (Workflow F)
-│   ├── verify_hwpx.py         # ★ 서브에이전트 검수 도구
+│   ├── verify_hwpx.py         # ★ 서브에이전트 검수 도구 (+ zip bomb 체크)
 │   ├── text_extract.py        # 텍스트 추출
 │   ├── md2hwpx.py             # 마크다운→HWPX 자동 변환
-│   ├── hwpx_modifier.py       # ★ 양식 세밀 수정 (Workflow G)
+│   ├── hwpx_modifier.py       # ★ 양식 세밀 수정 (+ collect_all_fields)
 │   ├── hwpx_form_filler.py    # ★ 양식 부분 추출/표 조작 (Workflow H)
 │   ├── hwpx_writer.py         # 줄간격 XML 생성 유틸리티
 │   ├── exam_builder.py          # ★ 시험 문제지 생성 (Workflow J)
@@ -44,8 +45,23 @@ ${CLAUDE_SKILL_DIR}/
     ├── troubleshooting.md     # 트러블슈팅
     ├── report-style.md        # 보고서 양식 상세
     ├── official-doc-style.md  # 공문서 양식 상세
-    └── xml-internals.md       # 저수준 XML 구조
+    ├── xml-internals.md       # 저수준 XML 구조
+    └── rhwp-benchmark.md      # rhwp 포팅 배경·표 수식·필드 API 사용법
 ```
+
+## rhwp 포팅 요약 (2026-04-18)
+
+외부 의존성 없이 rhwp (edwardkim/rhwp, MIT) 에서 **알고리즘·패턴**만 추출·포팅.
+자세한 배경은 `references/rhwp-benchmark.md` 참조.
+
+| 새 기능 | 파일 | 용도 |
+|--------|------|------|
+| 표 계산식 엔진 | `scripts/table_calc.py` | SUM/AVG/MIN/MAX/COUNT/IF + 범위·방향 참조. 표 셀 수식 평가 |
+| **HWPX FORMULA 필드 주입** | `hwpx_helpers.py` — `apply_formula_to_cell()`, `build_formula_run_inner_xml()` | HwpOffice 실스펙 구조로 필드 삽입. F9로 재계산 가능 (2026-04-19 검증) |
+| `local_name()` / `xpath_local()` | `hwpx_helpers.py` | 네임스페이스 prefix 무관 XPath 검색 |
+| `utf16_len()` / `tab_aware_offset()` | `hwpx_helpers.py` | 탭 8 코드유닛 동기화 (charShape 경계 계산용) |
+| zip bomb 상한 체크 | `verify_hwpx.py`, `hwpx_helpers.py` | XML 32MB / BinData 64MB |
+| `collect_all_fields()` | `hwpx_modifier.py` | `<hp:fieldBegin>` 전수 조회 (fieldName/Command/params) |
 
 ## 환경 설정
 
@@ -135,9 +151,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/validate.py" result.hwpx
 - 줄간격: 160% (report 템플릿 기본값)
 - 표/이미지: `treatAsChar="1"` (글자처럼 취급)
 
-### 서식 후처리 (페이지넘김·빈줄 삽입)
+### 서식 후처리 (빈 줄 삽입)
 
-md2hwpx.py는 모든 문단을 연속 배치한다. 헤딩 앞 페이지넘김, 빈 줄 등은 section0.xml을 후처리하여 삽입한다.
+md2hwpx.py는 모든 문단을 연속 배치한다. 대단원(`##`) 앞 빈 줄 2개, 중단원(`###`) 앞 빈 줄 1개, 표 뒤 빈 줄 1개는 section0.xml을 후처리하여 삽입한다. 페이지넘김은 사용하지 않는다 — 강제 페이지 분리는 레이아웃을 흐트러뜨리므로, 구분은 공백으로만 표현한다.
 
 ```python
 import zipfile, re, os
@@ -145,9 +161,9 @@ import zipfile, re, os
 def format_spacing(hwpx_path):
     """
     report 템플릿 기준:
-    - ## (charPrIDRef="8") 앞에 pageBreak="1"
-    - ### (charPrIDRef="13") 앞에 빈 줄
-    - 표(</hp:tbl>) 뒤에 빈 줄
+    - ## (charPrIDRef="8") 앞에 빈 줄 2개
+    - ### (charPrIDRef="13") 앞에 빈 줄 1개
+    - 표(</hp:tbl>) 뒤에 빈 줄 1개
     """
     with zipfile.ZipFile(str(hwpx_path), "r") as z:
         section = z.read("Contents/section0.xml").decode("utf-8")
@@ -160,13 +176,17 @@ def format_spacing(hwpx_path):
                 f'pageBreak="0" columnBreak="0" merged="0">'
                 f'<hp:run charPrIDRef="0"><hp:t/></hp:run></hp:p>')
 
-    # 1. ## 헤딩 → pageBreak="1"
-    for m in re.finditer(r'<hp:p\s[^>]*?pageBreak="0"[^>]*>', section):
-        run_area = section[m.start():m.start()+500]
-        if 'charPrIDRef="8"' in run_area:
-            old_tag = section[m.start():m.end()]
-            section = section[:m.start()] + old_tag.replace(
-                'pageBreak="0"', 'pageBreak="1"') + section[m.end():]
+    # 1. ## 헤딩 앞에 빈 줄 2개 (문서 선두의 ## 제외)
+    h2_pos = [m.start() for m in re.finditer(
+        r'<hp:p\s[^>]*?pageBreak="[01]"[^>]*>', section)
+        if 'charPrIDRef="8"' in section[m.start():m.start()+500]]
+    body_start = section.find('<hs:sec')
+    body_start = section.find('>', body_start) + 1 if body_start != -1 else 0
+    for pos in reversed(h2_pos):
+        # 문서 맨 앞의 첫 ## 에는 공백 삽입 안 함
+        if pos <= body_start + 200:
+            continue
+        section = section[:pos] + empty_para() + "\n" + empty_para() + "\n" + section[pos:]
 
     # 2. ### 헤딩 앞에 빈 줄 (뒤→앞 삽입)
     h3_pos = [m.start() for m in re.finditer(
@@ -952,6 +972,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/verify_hwpx.py" --result output.hwpx
 # JSON 리포트 출력 (자동화용)
 python3 "${CLAUDE_SKILL_DIR}/scripts/verify_hwpx.py" \
   --source original.hwpx --result output.hwpx --json report.json
+
+# polaris-dvc strict 검증 (JID 위반 검출)
+python3 "${CLAUDE_SKILL_DIR}/scripts/verify_hwpx.py" --result output.hwpx --strict
 ```
 
 ### 검수 항목
@@ -964,6 +987,20 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/verify_hwpx.py" \
 | 런 보존 | 원본 대비 런(run) 수 | **감소 시 FAIL** |
 | 테이블·이미지 | 원본 대비 수량 | 감소 시 FAIL |
 | section 크기 | 원본 대비 비율 | 50% 미만 시 FAIL |
+| **polaris-dvc** (`--strict`) | JID 위반 (구조·컨테이너·규칙) | 위반 1건 이상 |
+
+### polaris-dvc strict 모드
+
+`--strict` 플래그를 주면 [PolarisOffice/polaris_dvc](https://github.com/PolarisOffice/polaris_dvc) 바이너리(`bin/polaris-dvc.exe`)가 호출되어 JID 위반을 검출한다. 4축 검증:
+
+| 축 | JID | 내용 |
+|---|---|---|
+| 규칙 적합성 | 1000–7999 | 폰트·크기·스타일 (spec JSON 필요, `--spec` 으로 전달) |
+| 구조 무결성 | 11000–11999 | charPrIDRef cross-ref, lineSegArray, manifest ↔ BinData |
+| 컨테이너 건전성 | 12000–12999 | ZIP mimetype, 필수 entry, `__MACOSX/` 금지 |
+| 스키마 적합성 | 13000–13999 | KS X 6101 XSD (오탐 多 — 기본 비활성) |
+
+바이너리 미설치 시 graceful 폴백 (warning만 남기고 통과). 사후 발견된 알려진 패턴: hwpx 스킬이 만든 문서는 paragraph의 lineSegArray가 비어 JID 11004를 다수 발생시킨다 — HwpOffice는 보정해서 열지만 다른 구현체에는 깨진 파일로 보일 수 있음.
 
 ### 서브에이전트 워크플로우 예시
 

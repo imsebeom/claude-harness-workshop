@@ -704,8 +704,11 @@ class HwpxFormFiller:
     def save(self, output_path: str) -> str:
         """수정된 HWPX 파일 저장"""
         # linesegarray 제거 (텍스트 수정 후 레이아웃 캐시 무효화 → 한글이 자동 재계산)
+        # 단, 빈 lineSegArray 가 polaris-dvc JID 11004 를 트리거하므로 더미를 다시 박는다
         for lsa in list(self.section_tree.iter('{http://www.hancom.co.kr/hwpml/2011/paragraph}linesegarray')):
             lsa.getparent().remove(lsa)
+        from hwpx_helpers import ensure_dummy_linesegs_etree
+        ensure_dummy_linesegs_etree(self.section_tree)
 
         section_path = os.path.join(self.temp_dir, 'Contents', 'section0.xml')
 

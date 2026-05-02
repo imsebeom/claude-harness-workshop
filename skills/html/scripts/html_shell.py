@@ -73,6 +73,22 @@ main{max-width:var(--maxw);margin:0 auto;padding:28px 20px 120px}
 .chapter-body li{margin:6px 0}
 .chapter-body blockquote{margin:20px 0;padding:14px 20px;border-left:4px solid var(--accent);background:var(--card);border-radius:4px;color:var(--muted)}
 
+/* tables (cmp-table): 모바일에서 가로 스크롤로 안전 처리, 얇은 검정 테두리로 가독성 확보 */
+table.cmp-table{width:100%;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;border-collapse:collapse;font-size:14px;line-height:1.6;margin:28px 0;background:var(--card);border:1px solid #1a1a1a;max-width:100%}
+table.cmp-table caption{caption-side:top;text-align:left;margin:0 0 10px;font-size:14px;color:var(--muted);line-height:1.5;font-weight:400}
+table.cmp-table caption strong{color:var(--fg);font-weight:700}
+table.cmp-table thead{background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+table.cmp-table th,table.cmp-table td{padding:10px 12px;border:1px solid #1a1a1a;vertical-align:top;text-align:left;word-break:keep-all;overflow-wrap:break-word;min-width:84px}
+table.cmp-table th{color:var(--fg);font-weight:700;font-size:13px;white-space:nowrap}
+@media(max-width:640px){
+  table.cmp-table{font-size:13px;line-height:1.55}
+  table.cmp-table th,table.cmp-table td{padding:8px 10px;min-width:96px}
+}
+@media(prefers-color-scheme:dark){
+  table.cmp-table{background:#1b1f27;border-color:#e9eaec}
+  table.cmp-table th,table.cmp-table td{border-color:#e9eaec}
+}
+
 /* figures */
 .chapter-figures{margin:36px 0 10px}
 figure.book-fig{margin:28px 0;padding:18px;border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 12px rgba(0,0,0,.05)}
