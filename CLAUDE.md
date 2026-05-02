@@ -7,7 +7,7 @@
 ## 기본 원칙
 - **한국어로 사고하고 대화하라.**
 - 모델은 sonnet 고정. (Claude Code Pro 요금제 한도 보호)
-- thinking effort는 medium 권장. 새 세션 시작 시 `/effort medium` 한 번. (Pro 5시간 한도 보호 — high는 thinking 토큰을 많이 태운다)
+- thinking effort는 medium 권장. 새 세션 시작 시 `/effort` → 메뉴에서 medium 선택. (Pro 5시간 한도 보호 — high는 thinking 토큰을 많이 태운다. xhigh는 정말 어려운 한 문제에만 한 번 쓰고 끄는 용도)
 - 파일 수정 전 반드시 먼저 읽을 것.
 - 복잡한 작업은 plan 모드로 시작.
 

@@ -90,10 +90,10 @@ claude
 이어서 한 줄을 더 칩니다 — thinking effort를 `medium`으로 낮춰 둡니다.
 
 ```text
-/effort medium
+/effort
 ```
 
-Claude Code는 응답 전에 내부적으로 한 번 더 "생각"(extended thinking)하는 단계를 거치는데, 그 깊이가 `high`·`medium`·`low`로 조절됩니다. 워크숍 실습은 대부분 스킬·도구 호출 흐름이라 `medium`으로 충분하고, **Pro 요금제 5시간 한도가 더 오래 갑니다.** 한 번 쳐 두면 그 세션 내내 유지됩니다.
+선택 메뉴가 뜨면 화살표로 **medium**을 고르고 `Enter`. 보통 `none`/`medium`/`high`/`xhigh` 네 단계가 나오는데, 워크숍 실습은 대부분 스킬·도구 호출 흐름이라 `medium`으로 충분합니다. **기본은 `high`라서 그대로 두면 Pro 요금제 5시간 한도가 빠르게 깎입니다** — 빈 PC로 GitHub raw fetch 셋팅 한 번에 약 10%가 빠진 측정값이 있고, `medium`으로 낮추면 한 자릿수 % 안쪽으로 떨어집니다. `high`·`xhigh`는 복잡한 디버깅·아키텍처 설계 같은 곳에 한 번 쓰고 다시 내리는 도구로 두세요. 한 번 고른 단계는 그 세션 내내 유지됩니다.
 
 ## Windows 편의 셋팅 (PATH + 우클릭 메뉴)
 
