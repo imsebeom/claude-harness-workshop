@@ -34,9 +34,6 @@ cp    "$TMP_DIR/settings.json" "$CLAUDE_DIR/"
 cp -r "$TMP_DIR/skills"        "$CLAUDE_DIR/"
 cp -r "$TMP_DIR/commands"      "$CLAUDE_DIR/"
 
-# macOS의 Stop 훅용으로 settings.json의 powershell 부분을 비활성화 (선택)
-# 워크숍에서는 그대로 두고, 학생이 직접 수정하도록 안내
-
 # 4. 정리
 rm -rf "$TMP_DIR"
 

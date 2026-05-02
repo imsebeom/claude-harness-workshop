@@ -17,8 +17,6 @@
       "Bash(git:*)",
       "Bash(gh:*)",
       "Bash(firebase:*)",
-      "Bash(netlify:*)",
-      "Bash(vercel:*)",
       "Bash(make:*)",
       "Bash(dir:*)",
       "Bash(ls:*)",
@@ -56,7 +54,6 @@
       "Bash(uniq:*)",
       "Bash(diff:*)",
       "Bash(pandoc:*)",
-      "Bash(soffice:*)",
       "Bash(powershell:*)",
       "Bash(powershell -Command:*)",
       "Bash(pwsh:*)",
@@ -65,7 +62,6 @@
       "Bash(ruff:*)",
       "Bash(eslint:*)",
       "Bash(prettier:*)",
-      "Bash(claude:*)",
       "Read",
       "Glob",
       "Grep",
@@ -85,7 +81,7 @@
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~*)"
     ],
-    "defaultMode": "auto"
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "PreToolUse": [
@@ -114,18 +110,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'FILE=$(echo $TOOL_INPUT | sed -n \"s/.*\\\"file_path\\\":\\\"\\([^\\\"]*\\)\\\".*/\\1/p\"); if [[ \"$FILE\" == *.py ]]; then python -m ruff check --fix --quiet \"$FILE\" >/dev/null 2>&1; python -m ruff format --quiet \"$FILE\" >/dev/null 2>&1; if ! OUT=$(python -m ruff check --quiet \"$FILE\" 2>&1); then echo \"ruff: 미해결 린트 에러 ($FILE)\" >&2; echo \"$OUT\" >&2; exit 2; fi; fi'"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "powershell -Command \"[console]::beep(800,300); [console]::beep(1000,300)\""
+            "command": "bash -c 'command -v ruff >/dev/null 2>&1 || exit 0; FILE=$(echo $TOOL_INPUT | sed -n \"s/.*\\\"file_path\\\":\\\"\\([^\\\"]*\\)\\\".*/\\1/p\"); if [[ \"$FILE\" == *.py ]] && [ -f \"$FILE\" ]; then ruff check --fix --quiet \"$FILE\" >/dev/null 2>&1; ruff format --quiet \"$FILE\" >/dev/null 2>&1; fi'"
           }
         ]
       }
@@ -136,12 +121,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"[console]::beep(600,200); [console]::beep(800,200); [console]::beep(1000,300)\""
+            "command": "bash -c 'case \"$(uname -s 2>/dev/null)\" in Darwin) afplay /System/Library/Sounds/Glass.aiff >/dev/null 2>&1 & ;; Linux) (command -v paplay >/dev/null && paplay /usr/share/sounds/freedesktop/stereo/complete.oga >/dev/null 2>&1) & ;; *) powershell -Command \"[console]::beep(800,200); [console]::beep(1000,300)\" >/dev/null 2>&1 & ;; esac; exit 0'"
           }
         ]
       }
     ]
-  },
-  "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true
+  }
 }

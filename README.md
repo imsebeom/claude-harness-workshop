@@ -11,7 +11,7 @@
 | 폴더/파일 | 설명 |
 |----------|------|
 | `CLAUDE.md` | 글로벌 지침 슬림판 (한국어, sonnet 고정, 스프린트 계약, 컨텍스트 앵커) |
-| `settings.json` | sonnet 모델 강제 + acceptEdits 권한 + Stop 비프 훅 1개 |
+| `settings.json` | sonnet 모델 강제 / `defaultMode: acceptEdits` (Pro 토큰 보호) / 위험 명령 차단 훅 / `.bak` 자동 백업 훅 / ruff 포맷 훅(미설치 시 자동 스킵) / OS 감지 Stop 비프 훅 |
 | `skills/html` | PDF/DOCX → 모바일 친화 HTML ebook 변환 |
 | `skills/pdf` | HWP/HWPX → PDF, PDF → 이미지 변환 |
 | `skills/rag` | PDF/논문/영상 → RAG용 마크다운 변환 (한컴 미설치자용 `.hwp` 폴백 포함) |
