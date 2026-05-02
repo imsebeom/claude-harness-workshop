@@ -87,6 +87,14 @@ claude
 
 `claude-sonnet` 계열로 답변하면 정상 동작입니다.
 
+이어서 한 줄을 더 칩니다 — thinking effort를 `medium`으로 낮춰 둡니다.
+
+```text
+/effort medium
+```
+
+Claude Code는 응답 전에 내부적으로 한 번 더 "생각"(extended thinking)하는 단계를 거치는데, 그 깊이가 `high`·`medium`·`low`로 조절됩니다. 워크숍 실습은 대부분 스킬·도구 호출 흐름이라 `medium`으로 충분하고, **Pro 요금제 5시간 한도가 더 오래 갑니다.** 한 번 쳐 두면 그 세션 내내 유지됩니다.
+
 ## Windows 편의 셋팅 (PATH + 우클릭 메뉴)
 
 공식 Windows 인스톨러(`claude.ai/install.cmd`)는 `claude.exe`를 `%USERPROFILE%\.local\bin\`에 설치하지만 **PATH 등록은 하지 않습니다**. 그래서 첫 실행은 파일 탐색기에서 직접 `claude.exe`를 더블클릭해야 합니다:
