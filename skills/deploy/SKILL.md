@@ -1,5 +1,6 @@
 ---
-description: 현재 폴더의 정적 결과물(HTML, ebook 등)을 Firebase Hosting에 배포한다.
+name: deploy
+description: "Firebase Hosting 배포 스킬. 'firebase 배포', 'firebase 올려', '공개 URL 만들어 줘', '/deploy' 등 현재 폴더의 정적 결과물(HTML·ebook 등)을 인터넷에 올려야 할 때 사용. /deploy"
 ---
 
 다음 절차로 Firebase Hosting 배포를 수행하라.

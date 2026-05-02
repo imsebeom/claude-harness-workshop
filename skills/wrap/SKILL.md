@@ -1,6 +1,6 @@
 ---
-description: Session wrap-up - analyze session, suggest documentation updates, automation opportunities, and follow-up tasks
-allowed-tools: Bash(git *), Read, Write, Edit, Glob, Grep, Task, AskUserQuestion
+name: wrap
+description: "세션 마무리 스킬. '세션 정리', '/wrap', 'wrap up', '학습점 정리' 등 작업을 마치며 진행 상황·학습점·다음 할 일을 자동 정리할 때 사용."
 ---
 
 # Session Wrap-up (/wrap)

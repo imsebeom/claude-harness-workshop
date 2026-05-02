@@ -47,7 +47,7 @@
    cd claude-harness-workshop
    ```
 3. Windows: `.\install\install.ps1` / Mac·Linux: `bash install/install.sh`
-4. 폴더 구조 라이브 투어 — `CLAUDE.md`, `settings.json`, `skills/`, `commands/`
+4. 폴더 구조 라이브 투어 — `CLAUDE.md`, `settings.json`, `skills/`
 5. `claude` 실행 → "안녕! 너는 어떤 모델이야?" → sonnet 응답 확인
 
 ---
@@ -105,7 +105,7 @@
 1. **CLAUDE.md** (지침층) — 글로벌 + 프로젝트 두 층
 2. **settings.json** (권한·훅층) — `defaultMode`, `permissions.allow`, `hooks`
 3. **hooks** (자동화층) — PreToolUse / PostToolUse / Stop / Notification
-4. **skills · commands · agents** (확장층) — 절차 / 단축 / 다른 두뇌
+4. **skills · agents** (확장층) — 능력 묶음 / 다른 두뇌
 
 ### 스프린트 계약 + 컨텍스트 앵커 (10분, 16:40–16:50)
 - **스프린트 계약**: 복잡한 작업 착수 전 *완료 조건 3줄* 합의
@@ -113,7 +113,7 @@
 
 ### 본인 하네스 1개 추가 실습 (15분, 16:50–17:05)
 셋 중 택1 — 강사가 실시간으로 같이 만듦:
-- (A) 본인 분야 커맨드 1개 (`/회의록`, `/오늘의수업` 등)
+- (A) 본인 분야 스킬 1개 (`/회의록`, `/오늘의수업` 등)
 - (B) 본인 분야 스킬 1개 (학습지 자동 생성)
 - (C) Stop 훅에 본인 멘트 추가 (`settings.json`)
 
@@ -131,7 +131,7 @@
 | 7 | `/paperbanana` | 학술 다이어그램 자동 생성 |
 | 8 | `/video-transcript` | 영상·YouTube → 자막 마크다운 |
 
-#### 🟡 묶음 B — 강사 사례 스킬·커맨드 (저장소 미포함, 4분)
+#### 🟡 묶음 B — 강사 사례 스킬 (저장소 미포함, 4분)
 "이런 식으로 본인 분야에 맞춰 만들 수 있습니다" — 30초씩 컷
 
 | # | 항목 | 한 줄 |

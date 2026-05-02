@@ -20,10 +20,10 @@
 | `skills/pptx` | 슬라이드 자동 작성·편집 |
 | `skills/docx` | 워드 문서 자동 작성·편집 |
 | `skills/video-transcript` | 영상·YouTube → 자막 마크다운 |
-| `commands/deploy.md` | Firebase Hosting 한 줄 배포 (`/deploy`) |
-| `commands/verify.md` | 결과물 경량 검증 |
-| `commands/wrap.md` | 세션 마무리 (학습점·다음 할 일 정리) |
-| `commands/project-init.md` | 새 프로젝트 표준 구조 초기화 |
+| `skills/deploy` | Firebase Hosting 한 줄 배포 (`/deploy`) |
+| `skills/verify` | 결과물 경량 검증 (`/verify`) |
+| `skills/wrap` | 세션 마무리 — 학습점·다음 할 일 정리 (`/wrap`) |
+| `skills/project-init` | 새 프로젝트 표준 구조 초기화 (`/project-init`) |
 | `install/install.ps1` | 워크숍 하네스 적용 스크립트 (Windows) |
 | `install/install.sh` | 워크숍 하네스 적용 스크립트 (macOS/Linux) |
 | `install/setup-windows.ps1` | Windows 편의 셋팅 (PATH + 우클릭 메뉴) |

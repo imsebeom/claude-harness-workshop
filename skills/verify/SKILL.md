@@ -1,6 +1,6 @@
 ---
-description: "결과물 검증. /verify [파일경로]. 파일 유형별 경량 검증 수행."
-allowed-tools: Bash(python *), Bash(ruff *), Bash(unzip *), Bash(wc *), Bash(file *), Read, Glob
+name: verify
+description: "결과물 경량 검증 스킬. '결과물 검증', '제대로 만들어졌는지 확인', '/verify' 등 파일 유형별로 빠르게 검증할 때 사용. /verify [파일경로]"
 ---
 
 # 결과물 검증 커맨드

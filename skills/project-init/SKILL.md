@@ -1,6 +1,6 @@
 ---
-description: "새 프로젝트 표준 구조 초기화. /project-init [유형] [주제]. 유형: webapp, document, research (기본: webapp)"
-allowed-tools: Bash(mkdir *), Bash(git *), Write, Read, Glob
+name: project-init
+description: "새 프로젝트 표준 구조 초기화 스킬. '/project-init', '새 프로젝트 시작', '프로젝트 구조 만들어 줘' 등 새 작업 폴더의 디렉토리 구조·CLAUDE.md·.gitignore 등을 한 번에 깔 때 사용. /project-init [유형] [주제]"
 ---
 
 # 프로젝트 초기화 커맨드
