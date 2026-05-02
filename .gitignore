@@ -28,6 +28,7 @@ history.jsonl
 # 백업 파일
 *.bak
 *.bak.*
+*.bak_*
 ~/.claude.bak.*
 
 # 학생 실습 결과물
