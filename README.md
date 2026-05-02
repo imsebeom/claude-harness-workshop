@@ -46,11 +46,14 @@ pip install pyhwp
 
 ## 사전 준비물
 
-1. **Node.js 18 이상** — https://nodejs.org/
-2. **Claude Code** — `npm install -g @anthropic-ai/claude-code`
-3. **Claude Code Pro 요금제** — 로그인 후 sonnet 모델 사용 가능 확인
-4. **Git** — https://git-scm.com/
-5. **(선택) Firebase 계정** — 3교시 배포 실습용
+**필수 — 강의 시작 전에 깔아 오기**
+1. **Claude Code 본체** — https://code.claude.com 의 Windows 인스톨러 (또는 `npm install -g @anthropic-ai/claude-code`)
+2. **Claude Code Pro 요금제** — 로그인 후 sonnet 모델 사용 가능 확인
+3. **Git** — https://git-scm.com/
+
+**워크숍 안에서 자동으로 깔리는 것 (미리 안 깔아 와도 OK)**
+- Python 3.12, Node.js LTS, firebase CLI — 1교시 4번 단계 끝에서 클로드에게 한 줄 부탁(`Python 3.12, Node.js LTS, firebase CLI가 깔려 있는지 확인하고 없는 것만 winget으로 깔아 줘`)으로 자동 셋팅됩니다. 학교 보안정책으로 winget이 막힌 PC라면 강의 전에 [python.org](https://www.python.org/downloads/) · [nodejs.org](https://nodejs.org/)에서 직접 받아 두세요.
+- 3교시 배포 실습용 **Firebase 계정**(google 계정으로 로그인 가능)
 
 ## 5분 설치
 
