@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-doc_to_md.py — HWP/HWPX/DOCX → Markdown 변환 (RAG용)
+doc_to_md.py — HWP/HWPX/DOCX → Markdown 변환
 
 사용법:
   python doc_to_md.py <file_path> [옵션]

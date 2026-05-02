@@ -18,7 +18,7 @@
 ## 도구 선호
 - **HTML ebook 변환** (PDF/DOCX → 모바일 친화 HTML): `/html` 스킬
 - **PDF 변환** (HWP/HWPX → PDF, PDF → 이미지): `/pdf` 스킬
-- **RAG 마크다운 변환** (PDF/논문/영상 → 마크다운): `/rag` 스킬
+- **마크다운 변환** (PDF/논문/영상 → AI가 읽기 좋은 마크다운): `/md` 스킬
 - **한글 문서(.hwpx) 작성·편집**: `/hwpx` 스킬
 - **학술 다이어그램·삽화**: `/paperbanana` 스킬
 

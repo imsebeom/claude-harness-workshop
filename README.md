@@ -14,7 +14,7 @@
 | `settings.json` | sonnet 모델 강제 / `defaultMode: acceptEdits` (Pro 토큰 보호) / 위험 명령 차단 훅 / `.bak` 자동 백업 훅 / ruff 포맷 훅(미설치 시 자동 스킵) / OS 감지 Stop 비프 훅 |
 | `skills/html` | PDF/DOCX → 모바일 친화 HTML ebook 변환 |
 | `skills/pdf` | HWP/HWPX → PDF, PDF → 이미지 변환 |
-| `skills/rag` | PDF/논문/영상 → RAG용 마크다운 변환 (한컴 미설치자용 `.hwp` 폴백 포함) |
+| `skills/md` | PDF/논문/영상 → AI가 읽기 좋은 마크다운 변환 (한컴 미설치자용 `.hwp` 폴백 포함) |
 | `skills/hwpx` | 한글 문서(.hwpx) 생성·편집 |
 | `skills/paperbanana` | 학술 다이어그램·삽화 자동 생성 |
 | `skills/pptx` | 슬라이드 자동 작성·편집 |
@@ -24,14 +24,13 @@
 | `commands/verify.md` | 결과물 경량 검증 |
 | `commands/wrap.md` | 세션 마무리 (학습점·다음 할 일 정리) |
 | `commands/project-init.md` | 새 프로젝트 표준 구조 초기화 |
-| `commands/rag.md` | `/rag <파일>` 단축 명령 |
 | `install/install.ps1` | 워크숍 하네스 적용 스크립트 (Windows) |
 | `install/install.sh` | 워크숍 하네스 적용 스크립트 (macOS/Linux) |
 | `install/setup-windows.ps1` | Windows 편의 셋팅 (PATH + 우클릭 메뉴) |
 
 ## `.hwp` 파일을 변환하려면 (선택)
 
-한글 문서(`.hwp`)를 `/rag`로 마크다운 변환할 때, `/rag` 스킬은 다음 두 경로를 자동으로 시도합니다.
+한글 문서(`.hwp`)를 `/md`로 마크다운 변환할 때, `/md` 스킬은 다음 두 경로를 자동으로 시도합니다.
 
 1. **1차 — 한컴 오피스 COM** (Windows + 한컴 설치자): 표·이미지·서식 보존
 2. **2차 — pyhwp (순수 파이썬)**: 한컴 없이도 동작. 표는 `<표>` 플레이스홀더로 표시, 이미지·서식은 누락

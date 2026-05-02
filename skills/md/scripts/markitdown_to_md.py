@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-markitdown_to_md.py — MarkItDown 기반 추가 포맷 변환 (RAG용)
+markitdown_to_md.py — MarkItDown 기반 추가 포맷 변환
 
 지원 포맷: PPTX, XLSX, CSV, HTML, JSON, XML, WAV, MP3, YouTube URL
 기존 pdf_to_md.py, doc_to_md.py가 처리하지 않는 포맷을 담당.
@@ -132,7 +132,7 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser(
-        description="MarkItDown 기반 추가 포맷 → Markdown 변환 (RAG용)"
+        description="MarkItDown 기반 추가 포맷 → Markdown 변환"
     )
     parser.add_argument("sources", nargs='+', help="파일 경로 또는 YouTube URL")
     parser.add_argument("-o", "--output", help="출력 디렉토리")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pdf_to_md.py — PDF → Markdown 변환 (RAG용)
+pdf_to_md.py — PDF → Markdown 변환
 
 사용법:
   python pdf_to_md.py <pdf_path> [옵션]
@@ -126,7 +126,7 @@ def process_pages(doc, page_range, img_prefix, md_path, images_dir, min_size, mi
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PDF → Markdown 변환 (RAG용)")
+    parser = argparse.ArgumentParser(description="PDF → Markdown 변환")
     parser.add_argument("pdf", help="PDF 파일 경로")
     parser.add_argument("-o", "--output", help="출력 디렉토리")
     parser.add_argument("-s", "--split", help="분할 설정 JSON 파일")

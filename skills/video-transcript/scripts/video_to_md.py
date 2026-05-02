@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-yt-dlp 자동 자막(또는 업로드된 자막)을 받아서 RAG용 마크다운으로 저장.
+yt-dlp 자동 자막(또는 업로드된 자막)을 받아서 마크다운으로 저장.
 
 사용법:
     python video_to_md.py "https://youtube.com/watch?v=..." -o out.md -l ko
@@ -124,7 +124,7 @@ def structure_with_llm(raw_text: str, title: str) -> str:
         print("WARNING: Claude API 키 없음, 원본 텍스트 유지", file=sys.stderr)
         return raw_text
 
-    prompt = f"""다음은 '{title}' 영상의 자막 텍스트입니다. RAG 시스템용 마크다운으로 구조화해주세요.
+    prompt = f"""다음은 '{title}' 영상의 자막 텍스트입니다. 검색·요약용 마크다운으로 구조화해주세요.
 
 요구사항:
 1. 논리적 섹션과 헤딩(##, ###) 부여
@@ -183,7 +183,7 @@ type: video-transcript
 
 
 def main():
-    ap = argparse.ArgumentParser(description="YouTube 자막을 RAG용 마크다운으로 저장")
+    ap = argparse.ArgumentParser(description="YouTube 자막을 마크다운으로 저장")
     ap.add_argument("source", help="URL (로컬 파일 미지원 — 자막 기반 스킬)")
     ap.add_argument("-o", "--output", help="출력 마크다운 경로")
     ap.add_argument("-l", "--language", default="", help="자막 언어 (ko/en 등)")
