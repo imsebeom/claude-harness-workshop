@@ -20,7 +20,7 @@
 - **PDF 변환** (HWP/HWPX → PDF, PDF → 이미지): `/pdf` 스킬
 - **마크다운 변환** (PDF/논문/영상 → AI가 읽기 좋은 마크다운): `/md` 스킬
 - **한글 문서(.hwpx) 작성·편집**: `/hwpx` 스킬
-- **학술 다이어그램·삽화**: `/paperbanana` 스킬
+- **학술 다이어그램·삽화**: `/paperbanana` 스킬 (paperbanana 7-에이전트 패키지 — 첫 호출 시 `pip install paperbanana` 자동, 강의장 압축 모드는 `max_iterations=1`)
 
 ## 하네스 엔지니어링 원칙
 
