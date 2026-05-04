@@ -104,7 +104,62 @@ invoke: "/나의에이전트하네스"
 하단에 캡션 한 줄: "{{업무명}} — {{Q6 매핑}} 위에 얹는 자동화"
 ```
 
-호출 결과 PNG가 떨어지면 "도식이 같은 폴더에 떨어졌습니다" 안내.
+호출 결과 PNG가 같은 폴더에 떨어지면 **바로 다음 단계(자동 시각 검증 루프)로 진입**한다 — 사용자에게 "떨어졌습니다"만 보고 끝내지 말 것.
+
+## 자동 시각 검증 루프 (도식 생성 직후, 최대 2회 재생성)
+
+생성된 도식이 의도대로 나왔는지 클로드 본인이 직접 눈으로 확인한 뒤, 이상 있으면 프롬프트 한 줄 다듬어 자동 재생성한다. **최대 2회까지** 재생성, 그 후에도 이상하면 사용자에게 보고 후 결정 위임.
+
+### Step A. 썸네일로 축소 (컨텍스트 절약)
+
+원본 PNG는 보통 400~700KB. 그대로 Read로 읽으면 컨텍스트 낭비. PIL로 긴 변 800px 이내, ~150KB 썸네일을 만든 뒤 그것만 Read로 읽는다.
+
+```python
+from PIL import Image
+import pathlib
+
+src = pathlib.Path("{{원본 도식 경로}}")
+thumb = src.with_name(src.stem + "_thumb.png")
+
+img = Image.open(src)
+img.thumbnail((800, 800))  # 비율 유지, 긴 변 800px
+img.save(thumb, optimize=True)
+print(f"썸네일: {thumb} ({thumb.stat().st_size/1024:.1f}KB)")
+```
+
+### Step B. Read로 썸네일 보고 4가지 체크
+
+Read 도구로 썸네일을 읽어 다음 4가지를 한 줄씩 점검:
+
+1. **박스 4개** — 트리거·처리·검증·저장 라벨이 각각 박스 위에 정확히 있는가
+2. **한글 가독성** — 박스 안 텍스트와 캡션이 깨지지 않고 또렷한가 (네모로 표시되는 글자 없는가)
+3. **캡션 일치** — 하단 캡션 문구가 의도한 *"{{업무명}} — {{Q6 매핑}} 위에 얹는 자동화"* 와 같은가
+4. **색상 팔레트** — 청록 박스 + 크림 배경 + 주황 화살표가 맞는가
+
+이 외에도 점선 피드백 화살표, 박스 안 내용 누락, 영어 글자 섞임 등 명백한 오류가 보이면 함께 기록.
+
+### Step C. 판정 + 분기
+
+- **모두 OK** → 사용자에게 도식 보여주고 다음 단계(7일 챌린지 안내)로
+- **하나라도 이상** → Step D로
+
+### Step D. 프롬프트 한 줄 보강 후 재생성 (최대 2회)
+
+발견한 문제에 따라 원래 프롬프트 끝에 한 줄을 추가해 다시 호출한다. 보강 예시:
+
+| 문제 | 추가할 한 줄 |
+|------|--------------|
+| 한글 깨짐 / 네모 글자 | `IMPORTANT: All Korean labels must be rendered with a Korean-capable font (Pretendard/Noto Sans KR). No tofu (□) characters allowed.` |
+| 박스 개수 부족 (3개만 나옴 등) | `Strictly draw exactly 4 boxes in a row. Do not merge or skip any.` |
+| 캡션 문구 다름 | `The bottom caption MUST say exactly: "{{원래 캡션 문구 그대로}}"` |
+| 색상 어긋남 | `Strictly use these hex colors only: box fill #0F3D44, text #F5F2ED, background #F5F2ED, arrows #E08A4E.` |
+| 점선 피드백 빠짐 | `Add a dashed orange arrow from Box 3 (Verify) back to Box 2 (Process), labeled "다시".` |
+
+재생성 후 다시 Step A → B → C로. **2회까지만** 반복 — 그 후에도 이상하면 다음 사용자 보고문으로:
+
+> *"두 번 더 굴려도 ○○ 부분이 의도와 다릅니다. 첨부된 도식과 의도하신 정정 사항을 비교해 다음 한 줄로 알려주시면 다시 굴리겠습니다 — 아니면 이 도식 그대로 가져가셔도 무방합니다."*
+
+> **왜 이 검증 루프가 스킬 안에 박혀 있나** — 이미지 → 클로드 시각 확인 → 자동 수정은 본 워크숍 강사가 본인 학습지 자동화 워크플로에서 쓰는 패턴 그대로다. **자기 닮음 패턴** — "검증 없는 자동화는 위험하다"는 4교시 핵심 메시지를 인터뷰 스킬 자신이 먼저 실천한다.
 
 ## 다음 단계 안내 (도식 생성 직후)
 
@@ -114,8 +169,9 @@ invoke: "/나의에이전트하네스"
 
 ## 사전 요구사항
 
-- `/paperbanana` 스킬 (워크숍 셋팅에 포함)
+- `/paperbanana` 스킬 (워크숍 셋팅에 포함, Gemini 3.1 Flash Image Preview 호출)
 - Gemini API 키 — 강의 당일 강사가 일회용 키를 공유 → `~/.claude/apikeys/gemini`에 저장하면 paperbanana가 자동 사용
+- 시각 검증 루프용 PIL: `pip install Pillow` (보통 이미 설치됨)
 
 ## 메타 — 이 스킬도 본인이 손볼 수 있다
 
